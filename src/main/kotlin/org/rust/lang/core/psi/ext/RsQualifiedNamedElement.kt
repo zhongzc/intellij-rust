@@ -25,6 +25,7 @@ interface RsQualifiedNamedElement : RsNamedElement {
     val crateRelativePath: String?
 }
 
+// always starts with crate root name
 val RsQualifiedNamedElement.qualifiedName: String?
     get() {
         val inCratePath = crateRelativePath ?: return null
@@ -32,21 +33,29 @@ val RsQualifiedNamedElement.qualifiedName: String?
         return "$cargoTarget$inCratePath"
     }
 
-fun RsQualifiedNamedElement.qualifiedNameRelativeTo(mod: RsMod): String? {
+// starts with 'crate' instead of crate root name if `context` is in same crate
+fun RsQualifiedNamedElement.qualifiedNameInCrate(context: RsElement): String? {
     val crateRelativePath = crateRelativePath
-    if (mod.crateRoot != crateRoot || crateRelativePath == null) {
-        return qualifiedName
-    }
+    if (context.crateRoot != crateRoot || crateRelativePath == null) return qualifiedName
 
     check(crateRelativePath.isEmpty() || crateRelativePath.startsWith("::"))
-    val absolutePath = "crate$crateRelativePath"
-    if (!containingMod.superMods.contains(mod)) return absolutePath
+    return "crate$crateRelativePath"
+}
 
-    val modPathPrefix = mod.crateRelativePath?.let { "$it::" } ?: return absolutePath
-    if (!crateRelativePath.startsWith(modPathPrefix)) return absolutePath
-    val relativePath = crateRelativePath.removePrefix(modPathPrefix)
+// if `this` is `crate::inner1::inner2::foo` and `context` is `crate::inner1`, then returns `inner2::foo`
+fun RsQualifiedNamedElement.qualifiedNameRelativeTo(context: RsMod): String? {
+    val absolutePath = qualifiedNameInCrate(context) ?: return null
+    if (!containingMod.superMods.contains(context)) return absolutePath
+    return convertPathToRelativeIfPossible(context, absolutePath)
+}
 
-    val cargoWorkspace = cargoWorkspace ?: return relativePath
+fun convertPathToRelativeIfPossible(context: RsMod, absolutePath: String): String {
+    val contextModPath = context.crateRelativePath ?: return absolutePath
+    val contextModPathPrefix = "crate$contextModPath::"
+    if (!absolutePath.startsWith(contextModPathPrefix)) return absolutePath
+    val relativePath = absolutePath.removePrefix(contextModPathPrefix)
+
+    val cargoWorkspace = context.cargoWorkspace ?: return relativePath
     if (cargoWorkspace.packages.any { relativePath.startsWith("${it.normName}::") }) {
         return "self::$relativePath"
     }

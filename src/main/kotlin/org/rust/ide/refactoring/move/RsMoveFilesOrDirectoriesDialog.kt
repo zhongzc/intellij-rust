@@ -10,7 +10,6 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.showOkCancelDialog
 import com.intellij.psi.PsiDirectory
-import com.intellij.psi.PsiElement
 import com.intellij.refactoring.RefactoringBundle
 import com.intellij.refactoring.RefactoringSettings
 import com.intellij.refactoring.copy.CopyFilesOrDirectoriesHandler
@@ -32,7 +31,7 @@ import org.rust.openapiext.toPsiFile
 
 class RsMoveFilesOrDirectoriesDialog(
     project: Project,
-    private val elementsToMove: Array<PsiElement>,
+    private val elementsToMove: Array<RsFile>,
     initialTargetDirectory: PsiDirectory?,
     private val moveCallback: MoveCallback?
 ) : MoveFilesOrDirectoriesDialog(project, elementsToMove, initialTargetDirectory) {
@@ -43,13 +42,11 @@ class RsMoveFilesOrDirectoriesDialog(
 
         try {
             for (element in elementsToMove) {
-                if (element is RsFile) {
-                    CopyFilesOrDirectoriesHandler.checkFileExist(targetDirectory, null, element, element.name, "Move")
-                }
+                CopyFilesOrDirectoriesHandler.checkFileExist(targetDirectory, null, element, element.name, "Move")
                 MoveFilesOrDirectoriesUtil.checkMove(element, targetDirectory)
             }
 
-            val doneCallback = Runnable { close(DialogWrapper.CANCEL_EXIT_CODE) }
+            val doneCallback = Runnable { close(DialogWrapper.OK_EXIT_CODE) }
             val searchForReferences = RefactoringSettings.getInstance().MOVE_SEARCH_FOR_REFERENCES_FOR_FILE
 
             doPerformMove(targetDirectory, searchForReferences, doneCallback)
@@ -78,18 +75,18 @@ class RsMoveFilesOrDirectoriesDialog(
             return
         }
 
-        val movedFile = elementsToMove.singleOrNull() as? RsFile
+        val movedFile = elementsToMove.singleOrNull()
             ?: error("Currently move is supported only for single file")
         val crateRoot = movedFile.crateRoot
             ?: error("movedFile.crateRoot is checked for null in RsMoveFilesOrDirectoriesHandler::canMove")
-        val newParentMod = targetDirectory.getOwningMod(crateRoot)
+        val targetMod = targetDirectory.getOwningMod(crateRoot)
         when {
-            newParentMod == null -> {
+            targetMod == null -> {
                 if (askShouldMoveIfNoNewParentMod()) {
                     runDefaultProcessor()
                 }
             }
-            newParentMod.crateRoot != movedFile.crateRoot -> {
+            targetMod.crateRoot != movedFile.crateRoot -> {
                 // TODO: support move file to different crate
                 runDefaultProcessor()
             }
@@ -98,7 +95,7 @@ class RsMoveFilesOrDirectoriesDialog(
                     project,
                     elementsToMove,
                     targetDirectory,
-                    newParentMod,
+                    targetMod,
                     moveCallback,
                     doneCallback
                 ).run()

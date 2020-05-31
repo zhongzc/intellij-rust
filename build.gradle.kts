@@ -1,3 +1,7 @@
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.apache.tools.ant.taskdefs.condition.Os.*
 import org.gradle.api.JavaVersion.VERSION_1_8
 import org.gradle.api.internal.HasConvention
@@ -14,10 +18,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.Writer
 import java.net.URL
 import kotlin.concurrent.thread
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 
 // The same as `--full-stacktrace` param
 gradle.startParameter.showStacktrace = ShowStacktrace.ALWAYS_FULL
@@ -185,14 +185,15 @@ project(":plugin") {
         val plugins = mutableListOf(
             project(":intellij-toml"),
             "IntelliLang",
-            graziePlugin,
-            psiViewerPlugin
+//            graziePlugin,
+            psiViewerPlugin,
+            "com.mnw.tabmover:1.3.0"
         )
         if (baseIDE == "idea") {
             plugins += listOf(
-                "copyright",
-                "java",
-                nativeDebugPlugin
+//                "copyright",
+                "java"
+//                nativeDebugPlugin
             )
         }
         setPlugins(*plugins.toTypedArray())
@@ -227,9 +228,9 @@ project(":plugin") {
 
         withType<RunIdeTask> {
             // Default args for IDEA installation
-            jvmArgs("-Xmx768m", "-XX:+UseConcMarkSweepGC", "-XX:SoftRefLRUPolicyMSPerMB=50")
+            jvmArgs("-Xmx2G", "-XX:+UseG1GC", "-XX:SoftRefLRUPolicyMSPerMB=50")
             // uncomment if `unexpected exception ProcessCanceledException` prevents you from debugging a running IDE
-            // jvmArgs("-Didea.ProcessCanceledException=disabled")
+            jvmArgs("-Didea.ProcessCanceledException=disabled")
         }
 
         withType<PatchPluginXmlTask> {

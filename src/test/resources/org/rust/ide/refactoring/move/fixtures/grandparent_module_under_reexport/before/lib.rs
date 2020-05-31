@@ -1,6 +1,6 @@
 pub mod inner1 {
     mod inner2 {
-        mod inner3 {
+        pub mod inner3 {
             pub mod mod1;
             pub mod mod2;
         }

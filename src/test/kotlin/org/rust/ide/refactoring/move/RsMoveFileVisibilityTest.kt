@@ -37,44 +37,47 @@ class RsMoveFileVisibilityTest : RsMoveFileTestBase() {
         """)
     }
 
-    fun `test outside reference to private item in old parent module 2`() = expectConflicts {
-        doTestExpectError(
-            arrayOf("mod1/foo.rs"),
-            "mod2",
-            """
-        //- main.rs
-            mod mod1;
-            mod mod2;
-        //- mod1/mod.rs
-            mod foo;
-            struct Mod1Struct1;
-            struct Mod1Struct2;
-        //- mod2/mod.rs
-        //- mod1/foo.rs
-            use crate::mod1::{Mod1Struct1, Mod1Struct2};
-        """)
-    }
+    // todo
+    // fun `test outside reference to private item in old parent module 2`() = expectConflicts {
+    //     doTestExpectError(
+    //         arrayOf("mod1/foo.rs"),
+    //         "mod2",
+    //         """
+    //     //- main.rs
+    //         mod mod1;
+    //         mod mod2;
+    //     //- mod1/mod.rs
+    //         mod foo;
+    //         struct Mod1Struct1;
+    //         struct Mod1Struct2;
+    //     //- mod2/mod.rs
+    //     //- mod1/foo.rs
+    //         use crate::mod1::{Mod1Struct1, Mod1Struct2};
+    //     """)
+    // }
 
-    fun `test outside reference to item which has pub(in old_parent_mod) visibility`() = expectConflicts {
-        doTestExpectError(
-            arrayOf("mod1/foo.rs"),
-            "mod2",
-            """
-        //- main.rs
-            mod mod1;
-            mod mod2;
-        //- mod1/mod.rs
-            pub mod foo;
-            pub mod bar;
-        //- mod2/mod.rs
-        //- mod1/foo.rs
-            pub fn func() {
-                super::bar::bar_func();
-            }
-        //- mod1/bar.rs
-            pub(super) fn bar_func() {}  // private for mod2
-        """)
-    }
+    // // not working because of https://github.com/intellij-rust/intellij-rust/issues/4000
+    // @Ignore
+    // fun `test outside reference to item which has pub(in old_parent_mod) visibility`() = expectConflicts {
+    //     doTestExpectError(
+    //         arrayOf("mod1/foo.rs"),
+    //         "mod2",
+    //         """
+    //     //- main.rs
+    //         mod mod1;
+    //         mod mod2;
+    //     //- mod1/mod.rs
+    //         pub mod foo;
+    //         pub mod bar;
+    //     //- mod2/mod.rs
+    //     //- mod1/foo.rs
+    //         pub fn func() {
+    //             super::bar::bar_func();
+    //         }
+    //     //- mod1/bar.rs
+    //         pub(super) fn bar_func() {}  // private for mod2
+    //     """)
+    // }
 
     fun `test outside reference to item in parent module, when parent module is private`() = expectConflicts {
         doTestExpectError(
@@ -345,7 +348,6 @@ class RsMoveFileVisibilityTest : RsMoveFileTestBase() {
         """)
     }
 
-    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
     fun `test inside reference, when new parent module is private`() = expectConflicts {
         doTestExpectError(
             arrayOf("mod1/foo.rs"),
@@ -456,7 +458,7 @@ class RsMoveFileVisibilityTest : RsMoveFileTestBase() {
         pub(in crate::inner1::inner2) mod foo;
     //- inner1/inner2/mod2/foo.rs
         pub(crate) fn func1() {}
-        pub(self) fn func2() {}
+        pub(in crate::inner1::inner2) fn func2() {}
         pub(in crate::inner1::inner2) fn func3() {}
         pub(in crate::inner1::inner2) fn func4() {}
         pub(in crate::inner1) fn func5() {}

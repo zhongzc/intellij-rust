@@ -17,3 +17,6 @@ trim_trailing_whitespace = false
 
 [*.bnf]
 indent_size = 2
+
+[src/gen/**]
+indent_size = 2

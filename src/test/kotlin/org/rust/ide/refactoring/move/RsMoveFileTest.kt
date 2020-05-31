@@ -125,10 +125,9 @@ class RsMoveFileTest : RsMoveFileTestBase() {
         """
     //- main.rs
         extern crate test_package;
-        use test_package::mod1::foo::func;
         fn test1() {
-            use test_package::mod1::*;
-            foo::func();
+            use test_package::mod1::foo::func;
+            func();
         }
         fn test2() {
             use test_package::mod1;
@@ -147,10 +146,9 @@ class RsMoveFileTest : RsMoveFileTestBase() {
     """, """
     //- main.rs
         extern crate test_package;
-        use test_package::mod2::foo::func;
         fn test1() {
-            use test_package::mod1::*;
-            test_package::mod2::foo::func();
+            use test_package::mod2::foo::func;
+            func();
         }
         fn test2() {
             use test_package::mod1;

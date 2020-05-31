@@ -179,16 +179,16 @@ class RsScopeTest : RsTestBase() {
         assertEquals(expectedSpan, actualSpan)
     }
 
-    private fun findMarker(text: String, marker: String): Int {
-        val markerOffset = text.indexOf(marker)
-        check(markerOffset != -1) { "No `$marker` marker:\n$text" }
-        check(text.indexOf(marker, startIndex = markerOffset + 1) == -1) {
-            "More than one `$marker` marker:\n$text"
-        }
-        return markerOffset
-    }
-
     companion object {
+        fun findMarker(text: String, marker: String): Int {
+            val markerOffset = text.indexOf(marker)
+            check(markerOffset != -1) { "No `$marker` marker:\n$text" }
+            check(text.indexOf(marker, startIndex = markerOffset + 1) == -1) {
+                "More than one `$marker` marker:\n$text"
+            }
+            return markerOffset
+        }
+
         private const val START_MARKER = "/*start*/"
         private const val END_MARKER = "/*end*/"
     }

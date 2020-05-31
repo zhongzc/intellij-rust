@@ -54,7 +54,8 @@ class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
         if (!CommonRefactoringUtil.checkReadOnlyStatusRecursively(project, elements.toList(), true)) return
 
         val adjustedTargetContainer = adjustTargetForMove(null, targetContainer)
-        val adjustedElements = adjustForMove(project, elements, adjustedTargetContainer) ?: return
+        val adjustedElements = adjustForMove(project, elements, adjustedTargetContainer)
+            ?.map { it as RsFile }?.toTypedArray() ?: return
 
         val targetDirectory = MoveFilesOrDirectoriesUtil.resolveToDirectory(project, adjustedTargetContainer)
         // adjustedTargetContainer will be null if refactoring is performed by action (F6),
