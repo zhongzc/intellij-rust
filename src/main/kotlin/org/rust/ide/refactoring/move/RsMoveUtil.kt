@@ -8,13 +8,15 @@ package org.rust.ide.refactoring.move
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.DummyHolder
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.contextOfType
 import com.intellij.psi.util.parentOfType
 import com.intellij.usageView.UsageInfo
+import org.rust.cargo.project.workspace.PackageOrigin
 import org.rust.ide.inspections.import.insertUseItem
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 
-abstract class RsMoveUsage(open val element: RsElement) : UsageInfo(element)
+sealed class RsMoveUsage(open val element: RsElement) : UsageInfo(element)
 
 class RsModDeclUsage(override val element: RsModDeclItem, val file: RsFile) : RsMoveUsage(element)
 
@@ -125,6 +127,7 @@ fun RsPath.isIdiomatic(target: RsQualifiedNamedElement): Boolean {
 
 fun RsPath?.resolvesToAndAccessible(target: RsQualifiedNamedElement): Boolean {
     if (this == null) return false
+    if (isInsideMetaItem(target)) return false
     check(containingFile !is DummyHolder)
     check(target.containingFile !is DummyHolder)
     val reference = reference ?: return false
@@ -135,6 +138,16 @@ fun RsPath?.resolvesToAndAccessible(target: RsQualifiedNamedElement): Boolean {
         if (!subpathTarget.isVisibleFrom(containingMod)) return false
     }
     return true
+}
+
+// target == `this.reference.resolve()`
+// (but path can be dangling, so we have to pass it as argument)
+fun RsPath.isInsideMetaItem(target: RsQualifiedNamedElement): Boolean {
+    // this is basically a hack for paths in #[derive]
+    // because proper implementation is complicated: https://github.com/intellij-rust/intellij-rust/issues/5446
+    // it doesn't fail when deriving something from prelude, e.g. Display or Debug
+    // and it adds import for derived trait in other cases (like serde Serialize)
+    return contextOfType<RsMetaItem>() != null && target.containingCargoPackage?.origin != PackageOrigin.STDLIB
 }
 
 fun RsElement.isInsideMovedElements(elementsToMove: List<ElementToMove>): Boolean {

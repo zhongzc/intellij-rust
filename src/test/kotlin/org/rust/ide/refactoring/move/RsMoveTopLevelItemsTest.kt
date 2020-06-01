@@ -833,7 +833,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     """)
 
     @ProjectDescriptor(WithStdlibRustProjectDescriptor::class)
-    fun `test use macros from prelude`() = doTest("""
+    fun `test outside references to macros from prelude`() = doTest("""
     //- main.rs
         mod mod1 {
             fn foo/*caret*/() {
@@ -920,6 +920,50 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             fn foo() {
                 mod1::bar::<i32>();
             }
+        }
+    """)
+
+    @ProjectDescriptor(WithStdlibRustProjectDescriptor::class)
+    fun `test outside reference to Debug trait in derive`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            #[derive(Debug)]
+            struct Foo/*caret*/ {}
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            #[derive(Debug)]
+            struct Foo {}
+        }
+    """)
+
+    fun `test outside reference to custom trait in derive`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar;
+            #[derive(Bar)]
+            struct Foo/*caret*/ {}
+        }
+        mod mod2/*target*/ {}
+        mod bar {
+            pub trait Bar {}
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar;
+        }
+        mod mod2 {
+            use crate::bar::Bar;
+
+            #[derive(Bar)]
+            struct Foo {}
+        }
+        mod bar {
+            pub trait Bar {}
         }
     """)
 
@@ -1317,7 +1361,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test outside references from use group`() = doTest("""
+    fun `test outside references from use group`() = doTestIgnore("""
     //- main.rs
         mod mod1 {
             fn foo/*caret*/() {

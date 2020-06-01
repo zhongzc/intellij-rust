@@ -262,10 +262,10 @@ class RsMoveCommonProcessor(
             RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
         }
 
-        // reference from moved item to items in old mod
-        val forceAddImport = !path.hasColonColon
+        val isReferenceFromMovedItemToItemInOldMod = !path.hasColonColon
             && target.containingMod == sourceMod
             && path.containingMod == sourceMod
+        val forceAddImport = isReferenceFromMovedItemToItemInOldMod || path.isInsideMetaItem(target)
         return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target, forceAddImport)
     }
 
