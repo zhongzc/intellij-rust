@@ -151,6 +151,8 @@ fun RsPath.isInsideMetaItem(target: RsQualifiedNamedElement): Boolean {
 }
 
 fun RsElement.isInsideMovedElements(elementsToMove: List<ElementToMove>): Boolean {
+    // todo just log error
+    check(containingFile !is RsCodeFragment)
     return elementsToMove.any {
         when (it) {
             is ItemToMove -> PsiTreeUtil.isAncestor(it.item, this, false)

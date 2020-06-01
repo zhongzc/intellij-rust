@@ -1064,6 +1064,27 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test self references to generic item`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo1<T>/*caret*/() {}
+            fn foo2/*caret*/() {
+                foo1::<i32>();
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            fn foo1<T>() {}
+
+            fn foo2() {
+                foo1::<i32>();
+            }
+        }
+    """)
+
     fun `test inside references from new mod`() = doTest("""
     //- main.rs
         mod mod1 {

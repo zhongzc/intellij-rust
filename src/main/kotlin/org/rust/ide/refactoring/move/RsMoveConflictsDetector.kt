@@ -24,7 +24,7 @@ class RsMoveConflictsDetector(
         insideReferences: List<RsMoveReferenceInfo>
     ) {
         for (reference in insideReferences) {
-            val pathOld = reference.pathOld
+            val pathOld = reference.pathOldOriginal
             if (reference.pathNewAccessible == null) {
                 addVisibilityConflict(conflicts, pathOld, reference.target)
             }
@@ -43,7 +43,7 @@ class RsMoveConflictsDetector(
     ) {
         for (reference in outsideReferences) {
             if (reference.pathNewAccessible == null) {
-                addVisibilityConflict(conflicts, reference.pathOld, reference.target)
+                addVisibilityConflict(conflicts, reference.pathOldOriginal, reference.target)
             }
         }
 

@@ -33,7 +33,6 @@ class RsMovePathHelper(project: Project, private val mod: RsMod) {
             .firstOrNull { it is RsVisibilityOwner && it.visibility == RsVisibility.Public && it.name != null }
 
     fun findPathAfterMove(context: RsElement, element: RsQualifiedNamedElement): RsPath? {
-        // todo elementName is repeated three times
         val elementName = (element as? RsFile)?.modName ?: element.name ?: return null
         if (context.containingMod == mod) return codeFragmentFactory.createPath(elementName, context)
 

@@ -126,7 +126,7 @@ class RsMoveCommonProcessor(
     private fun createInsideReferenceInfo(pathOriginal: RsPath, target: RsQualifiedNamedElement): RsMoveReferenceInfo {
         val path = pathOriginal.removeTypeArguments(codeFragmentFactory)
 
-        val isSelfReference = path.isInsideMovedElements(elementsToMove)
+        val isSelfReference = pathOriginal.isInsideMovedElements(elementsToMove)
         if (isSelfReference) {
             // todo cleanup if refactoring is cancelled ?
             pathOriginal.putCopyableUserData(RS_PATH_BEFORE_MOVE_KEY, pathOriginal)
@@ -247,6 +247,7 @@ class RsMoveCommonProcessor(
             if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
         }
 
+        // todo ? extract function findOutsideReferencePathNew(..): Pair<RsPath, RsPath>
         val pathNewFallbackText = target.qualifiedNameInCrate(path)
         val pathNewFallback = if (path.containingMod == sourceMod) {
             // after move `path` will belong to `targetMod`
