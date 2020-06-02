@@ -493,7 +493,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test copy trait imports from old mod`() = doTestIgnore("""
+    fun `test copy trait imports from old mod`() = doTest("""
     //- main.rs
         mod mod1 {
             use crate::bar::Bar;
@@ -501,7 +501,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
         mod mod2/*target*/ {}
         mod bar {
-            pub trait Bar { fn bar_func() {} }
+            pub trait Bar { fn bar_func(&self) {} }
             impl Bar for () {}
         }
     """, """
@@ -511,10 +511,11 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
         mod mod2 {
             use crate::bar::Bar;
+
             fn foo() { ().bar_func(); }
         }
         mod bar {
-            pub trait Bar { fn bar_func() {} }
+            pub trait Bar { fn bar_func(&self) {} }
             impl Bar for () {}
         }
     """)
@@ -565,22 +566,23 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test add trait imports for items in old mod`() = doTestIgnore("""
+    fun `test add trait imports for items in old mod`() = doTest("""
     //- main.rs
         mod mod1 {
             fn foo/*caret*/() { ().bar_func(); }
-            pub trait Bar { fn bar_func() {} }
+            pub trait Bar { fn bar_func(&self) {} }
             impl Bar for () {}
         }
         mod mod2/*target*/ {}
     """, """
     //- main.rs
         mod mod1 {
-            pub trait Bar { fn bar_func() {} }
+            pub trait Bar { fn bar_func(&self) {} }
             impl Bar for () {}
         }
         mod mod2 {
             use crate::mod1::Bar;
+
             fn foo() { ().bar_func(); }
         }
     """)

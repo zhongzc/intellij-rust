@@ -99,6 +99,8 @@ class RsMoveCommonProcessor(
                     ProgressManager.getInstance().progressIndicator.text = message("detecting.possible.conflicts")
                     conflictsDetector.detectInsideReferencesVisibilityProblems(conflicts, insideReferences)
                     conflictsDetector.detectOutsideReferencesVisibilityProblems(conflicts, outsideReferences)
+
+                    preprocessOutsideReferencesToTraitMethods(conflicts)
                 }
             },
             message("refactoring.preprocess.usages.progress"),
@@ -270,6 +272,25 @@ class RsMoveCommonProcessor(
         return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target, forceAddImport)
     }
 
+    private fun preprocessOutsideReferencesToTraitMethods(conflicts: MultiMap<PsiElement, String>) {
+        for (methodCall in movedElementsShallowDescendantsOfType<RsMethodCall>(elementsToMove)) {
+            if (methodCall.containingMod != sourceMod) continue
+            val method = methodCall.reference.resolve() as? RsAbstractable ?: continue
+            val trait = when (val owner = method.owner) {
+                is RsAbstractableOwner.Trait -> owner.trait
+                is RsAbstractableOwner.Impl -> owner.impl.traitRef?.resolveToTrait()
+                else -> null
+            } ?: continue
+
+            val traitUsePath = RsImportHelper.findPath(targetMod, trait)
+            if (traitUsePath == null) {
+                addVisibilityConflict(conflicts, methodCall, method.superItem ?: trait)
+            } else {
+                methodCall.putCopyableUserData(RS_METHOD_CALL_TRAIT_USE_PATH, Pair(trait, traitUsePath))
+            }
+        }
+    }
+
     fun performRefactoring(usages: Array<out UsageInfo>, moveElements: () -> MoveElementsResult) {
         // todo what to do with other usages?
         //  наверно нужно передать их в `super.performRefactoring`
@@ -280,6 +301,7 @@ class RsMoveCommonProcessor(
         val (elementsToMove, _) = moveElements()
         this.elementsToMove = elementsToMove
 
+        updateOutsideReferencesToTraitMethods()
         updateOutsideReferences()
 
         // todo filter self usages (especially when moving file with submodules)
@@ -296,6 +318,16 @@ class RsMoveCommonProcessor(
         //  visRestriction.putCopyableUserData(_, visRestriction.path.reference?.resolve())
         for (visRestriction in movedElementsDeepDescendantsOfType<RsVisRestriction>(elementsToMove)) {
             visRestriction.updateScopeIfNecessary(psiFactory, targetMod)
+        }
+    }
+
+    private fun updateOutsideReferencesToTraitMethods() {
+        for (methodCall in movedElementsShallowDescendantsOfType<RsMethodCall>(elementsToMove)) {
+            if (methodCall.containingMod != targetMod) continue
+            val (trait, traitUsePath) = methodCall.getCopyableUserData(RS_METHOD_CALL_TRAIT_USE_PATH) ?: continue
+            // can't check `methodCall.reference.resolve() != null`, because it is always not null
+            if (listOf(trait).filterInScope(methodCall).isNotEmpty()) continue
+            addImport(psiFactory, methodCall, traitUsePath)
         }
     }
 
@@ -557,5 +589,6 @@ class RsMoveCommonProcessor(
         private val RS_PATH_WRAPPER_KEY: Key<RsMoveReferenceInfo> = Key.create("RS_PATH_WRAPPER_KEY")
         private val RS_PATH_BEFORE_MOVE_KEY: Key<RsPath> = Key.create("RS_PATH_BEFORE_MOVE_KEY")
         private val RS_TARGET_BEFORE_MOVE_KEY: Key<RsQualifiedNamedElement> = Key.create("RS_TARGET_BEFORE_MOVE_KEY")
+        private val RS_METHOD_CALL_TRAIT_USE_PATH: Key<Pair<RsTraitItem, String>> = Key.create("RS_METHOD_CALL_TRAIT_USE_PATH")
     }
 }

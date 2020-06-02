@@ -94,15 +94,15 @@ class RsMoveConflictsDetector(
             addVisibilityConflict(conflicts, referenceElement, target)
         }
     }
+}
 
-    private fun addVisibilityConflict(
-        conflicts: MultiMap<PsiElement, String>,
-        reference: RsElement,
-        target: RsElement
-    ) {
-        val referenceDescription = RefactoringUIUtil.getDescription(reference.containingMod, true)
-        val targetDescription = RefactoringUIUtil.getDescription(target, true)
-        val message = "$referenceDescription uses $targetDescription which will be inaccessible after move"
-        conflicts.putValue(reference, CommonRefactoringUtil.capitalize(message))
-    }
+fun addVisibilityConflict(
+    conflicts: MultiMap<PsiElement, String>,
+    reference: RsElement,
+    target: RsElement
+) {
+    val referenceDescription = RefactoringUIUtil.getDescription(reference.containingMod, true)
+    val targetDescription = RefactoringUIUtil.getDescription(target, true)
+    val message = "$referenceDescription uses $targetDescription which will be inaccessible after move"
+    conflicts.putValue(reference, CommonRefactoringUtil.capitalize(message))
 }
