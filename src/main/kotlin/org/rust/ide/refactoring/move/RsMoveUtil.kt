@@ -223,3 +223,11 @@ fun addImport(psiFactory: RsPsiFactory, context: RsElement, usePath: String) {
     val scope = blockScope ?: context.containingMod
     scope.insertUseItem(psiFactory, usePath)
 }
+
+fun RsAbstractable.getTrait(): RsTraitItem? {
+    return when (val owner = owner) {
+        is RsAbstractableOwner.Trait -> owner.trait
+        is RsAbstractableOwner.Impl -> owner.impl.traitRef?.resolveToTrait()
+        else -> null
+    }
+}

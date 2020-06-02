@@ -566,24 +566,66 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test add trait imports for items in old mod`() = doTest("""
+    fun `test outside reference to method of trait in old mod`() = doTest("""
     //- main.rs
         mod mod1 {
-            fn foo/*caret*/() { ().bar_func(); }
-            pub trait Bar { fn bar_func(&self) {} }
+            fn foo/*caret*/() { ().bar(); }
+            pub trait Bar { fn bar(&self) {} }
             impl Bar for () {}
         }
         mod mod2/*target*/ {}
     """, """
     //- main.rs
         mod mod1 {
-            pub trait Bar { fn bar_func(&self) {} }
+            pub trait Bar { fn bar(&self) {} }
             impl Bar for () {}
         }
         mod mod2 {
             use crate::mod1::Bar;
 
-            fn foo() { ().bar_func(); }
+            fn foo() { ().bar(); }
+        }
+    """)
+
+    fun `test self reference to trait method`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo1/*caret*/() { ().foo(); }
+            pub trait Foo2/*caret*/ { fn foo(&self) {} }
+            impl Foo2 for ()/*caret*/ {}
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            fn foo1() { ().foo(); }
+
+            pub trait Foo2 { fn foo(&self) {} }
+
+            impl Foo2 for () {}
+        }
+    """)
+
+    fun `test inside reference to method of moved trait`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub trait Foo/*caret*/ { fn foo(&self) {} }
+            impl Foo for ()/*caret*/ {}
+            fn bar() { ().foo(); }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::mod2::Foo;
+
+            fn bar() { ().foo(); }
+        }
+        mod mod2 {
+            pub trait Foo { fn foo(&self) {} }
+
+            impl Foo for () {}
         }
     """)
 

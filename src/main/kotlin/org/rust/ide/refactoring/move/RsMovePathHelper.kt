@@ -34,14 +34,13 @@ class RsMovePathHelper(project: Project, private val mod: RsMod) {
 
     fun findPathAfterMove(context: RsElement, element: RsQualifiedNamedElement): RsPath? {
         val elementName = (element as? RsFile)?.modName ?: element.name ?: return null
-        if (context.containingMod == mod) return codeFragmentFactory.createPath(elementName, context)
+        if (context.containingModOrSelf == mod) return codeFragmentFactory.createPath(elementName, context)
 
-        return findPathAfterMoveUsingOtherItemInMod(context, element)
-            ?: findPathAfterMoveUsingMod(context, element)
+        return findPathAfterMoveUsingOtherItemInMod(context, elementName)
+            ?: findPathAfterMoveUsingMod(context, elementName)
     }
 
-    private fun findPathAfterMoveUsingOtherItemInMod(context: RsElement, element: RsQualifiedNamedElement): RsPath? {
-        val elementName = (element as? RsFile)?.modName ?: element.name ?: return null
+    private fun findPathAfterMoveUsingOtherItemInMod(context: RsElement, elementName: String): RsPath? {
         val secondaryElement = existingPublicItem ?: return null
         val secondaryElementName = secondaryElement.name ?: return null
         val secondaryPathText = findPath(context, secondaryElement)
@@ -54,8 +53,7 @@ class RsMovePathHelper(project: Project, private val mod: RsMod) {
         return codeFragmentFactory.createPath(pathText, context)
     }
 
-    private fun findPathAfterMoveUsingMod(context: RsElement, element: RsQualifiedNamedElement): RsPath? {
-        val elementName = (element as? RsFile)?.modName ?: element.name ?: return null
+    private fun findPathAfterMoveUsingMod(context: RsElement, elementName: String): RsPath? {
         val modPath = findPath(context, mod) ?: return null
         val elementPath = "$modPath::$elementName"
         return codeFragmentFactory.createPath(elementPath, context)
@@ -69,15 +67,17 @@ class RsMovePathHelper(project: Project, private val mod: RsMod) {
         if (pathSimple != null) return pathSimple
 
         val path = RsImportHelper.findPath(context, element) ?: return null
-        return convertPathToRelativeIfPossible(context.containingMod, path)
+        return convertPathToRelativeIfPossible(context.containingModOrSelf, path)
     }
 
     // returns `element.crateRelativePath` if it is accessible from `context`
     private fun findPathSimple(context: RsElement, element: RsQualifiedNamedElement): String? {
-        val contextMod = context.containingMod
+        val contextMod = context.containingModOrSelf
         val path = element.qualifiedNameRelativeTo(contextMod)
             ?.toRsPath(codeFragmentFactory, context)
             ?: return null
         return if (path.resolvesToAndAccessible(element)) path.text else null
     }
 }
+
+private val RsElement.containingModOrSelf: RsMod get() = (this as? RsMod) ?: containingMod
