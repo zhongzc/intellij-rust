@@ -1011,6 +1011,29 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test outside reference inside macro`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                println!("{}", BAR);
+            }
+            pub const BAR: i32 = 0;
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            pub const BAR: i32 = 0;
+        }
+        mod mod2 {
+            use crate::mod1::BAR;
+
+            fn foo() {
+                println!("{}", BAR);
+            }
+        }
+    """)
+
     // todo ? рассматривать только `RsPath` которые абсолютные или `this.path.reference().resolve == sourceMod`
     // todo ? для перемещаемых модулей: если был glob import `use mod1::*`, то добавлять `use mod2::*`
     fun `test self references 1`() = doTest("""

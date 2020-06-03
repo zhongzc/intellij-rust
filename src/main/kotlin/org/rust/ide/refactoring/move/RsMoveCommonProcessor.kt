@@ -212,7 +212,8 @@ class RsMoveCommonProcessor(
             // TODO: support references to macros
             //  is is complicated: https://doc.rust-lang.org/reference/macros-by-example.html#scoping-exporting-and-importing
             //  also RsImportHelper currently does not work for macros: https://github.com/intellij-rust/intellij-rust/issues/4073
-            if (path.parentOfType<RsMacroCall>() != null) continue
+            val macroCall = path.parentOfType<RsMacroCall>()
+            if (macroCall != null && macroCall.path.isAncestorOf(path)) continue
 
             // `use path1::{path2, path3}`
             //              ~~~~~  ~~~~~ todo don't ignore such paths
