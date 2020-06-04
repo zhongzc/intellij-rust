@@ -14,7 +14,7 @@ import org.rust.openapiext.fullyRefreshDirectory
 
 abstract class RsRealProjectTestBase : RsWithToolchainTestBase() {
     protected fun openRealProject(info: RealProjectInfo): VirtualFile? {
-        val base = openRealProject("testData/${info.path}", info.exclude)
+        val base = openRealProject("../testData/${info.path}", info.exclude)
         if (base == null) {
             val name = info.name
             println("SKIP $name: git clone ${info.gitUrl} testData/$name")
@@ -32,7 +32,7 @@ abstract class RsRealProjectTestBase : RsWithToolchainTestBase() {
             // 1. Ignore excluded files
             if (exclude.any { relativePath.startsWith(it) }) return false
             // 2. Ignore hidden files
-            if (file.name.startsWith(".")) return false
+            if (file.name.startsWith(".") && !file.name.startsWith(".git")) return false
             // 3. Ignore excluded directories in the root of the project
             if (file.isDirectory &&
                 file.name in EXCLUDED_DIRECTORY_NAMES &&
@@ -78,6 +78,7 @@ abstract class RsRealProjectTestBase : RsWithToolchainTestBase() {
                 "tmp"
             )
         )
+        val EMPTY = RealProjectInfo("empty", "empty", "")
         val CARGO = RealProjectInfo("cargo", "cargo", "https://github.com/rust-lang/cargo")
         val MYSQL_ASYNC = RealProjectInfo("mysql_async", "mysql_async", "https://github.com/blackbeam/mysql_async")
         val TOKIO = RealProjectInfo("tokio", "tokio", "https://github.com/tokio-rs/tokio")

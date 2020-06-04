@@ -150,6 +150,7 @@ allprojects {
             // because otherwise it can lead to compatibility issues.
             // Also note that IDEA does the same thing at startup, and not only for tests.
             systemProperty("jna.nosys", "true")
+            systemProperty("idea.max.content.load.filesize", "77000")
             if (TEAMCITY) {
                 // Make teamcity builds green if only muted tests fail
                 // https://youtrack.jetbrains.com/issue/TW-16784

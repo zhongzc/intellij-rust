@@ -97,26 +97,6 @@ class RsMoveTopLevelItemsHandler : MoveHandlerDelegate() {
         return items to containingMod
     }
 
-    private fun collectRelatedImplItems(containingMod: RsMod, items: List<RsItemElement>): List<RsImplItem> {
-        // For struct `Foo` we should collect:
-        // * impl Foo { ... }
-        // * impl ... for Foo { ... }
-        // * Maybe also `impl From<Foo> for Bar { ... }`?
-        //   if `Bar` belongs to same crate (but to different module from `Foo`)
-        //
-        // For trait `Foo` we should collect:
-        // * impl Foo for ... { ... }
-
-        return containingMod
-            .childrenOfType<RsImplItem>()
-            .filter {
-                val trait = it.traitRef?.path?.reference?.resolve()
-                val item = (it.typeReference?.type as? TyAdt)?.item
-                trait != null && items.contains(trait)
-                    || item != null && items.contains(item)
-            }
-    }
-
     companion object {
         fun canMoveElement(element: PsiElement): Boolean {
             return element is RsItemElement
@@ -126,4 +106,24 @@ class RsMoveTopLevelItemsHandler : MoveHandlerDelegate() {
                 && element !is RsForeignModItem
         }
     }
+}
+
+fun collectRelatedImplItems(containingMod: RsMod, items: List<RsItemElement>): List<RsImplItem> {
+    // For struct `Foo` we should collect:
+    // * impl Foo { ... }
+    // * impl ... for Foo { ... }
+    // * Maybe also `impl From<Foo> for Bar { ... }`?
+    //   if `Bar` belongs to same crate (but to different module from `Foo`)
+    //
+    // For trait `Foo` we should collect:
+    // * impl Foo for ... { ... }
+
+    return containingMod
+        .childrenOfType<RsImplItem>()
+        .filter {
+            val trait = it.traitRef?.path?.reference?.resolve()
+            val item = (it.typeReference?.type as? TyAdt)?.item
+            trait != null && items.contains(trait)
+                || item != null && items.contains(item)
+        }
 }

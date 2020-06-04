@@ -93,7 +93,7 @@ object RsExternalLinterUtils {
         }
     }
 
-    private fun checkWrapped(
+    fun checkWrapped(
         toolchain: RustToolchain,
         project: Project,
         owner: Disposable,
