@@ -60,21 +60,18 @@ fun String.toRsPath(psiFactory: RsPsiFactory): RsPath? =
 fun String.toRsPath(codeFragmentFactory: RsCodeFragmentFactory, context: RsElement): RsPath? =
     codeFragmentFactory.createPath(this, context)
 
-fun RsPath.getFirstSegment(): RsPath = path?.getFirstSegment() ?: this
-
 fun RsPath.isAbsolute(): Boolean {
     if (text.startsWith("::")) return true
 
-    val firstSegment = getFirstSegment()
-    val firstSegmentTarget = firstSegment.reference?.resolve() as? RsMod ?: return false
-    return firstSegmentTarget.isCrateRoot
+    val basePathTarget = basePath().reference?.resolve() as? RsMod ?: return false
+    return basePathTarget.isCrateRoot
 }
 
-fun RsPath.startsWithSuper(): Boolean = getFirstSegment().text == "super"
+fun RsPath.startsWithSuper(): Boolean = basePath().text == "super"
 
 fun RsPath.startsWithSelf(): Boolean {
-    val firstSegment = getFirstSegment().text
-    return firstSegment == "self" || firstSegment == "Self"
+    val basePathText = basePath().text
+    return basePathText == "self" || basePathText == "Self"
 }
 
 // Path is simple if target of all subpaths is `RsMod`
@@ -88,6 +85,7 @@ fun RsPath.startsWithSelf(): Boolean {
 // * `Vec::<i32>::new()`
 // * `Self::Item1`
 fun isSimplePath(path: RsPath): Boolean {
+    // todo don't ignore `self::`, only `Self::` ?
     if (path.startsWithSelf()) return false
     val target = path.reference?.resolve() ?: return false
     if (target is RsMod && path.parent is RsPath) return false

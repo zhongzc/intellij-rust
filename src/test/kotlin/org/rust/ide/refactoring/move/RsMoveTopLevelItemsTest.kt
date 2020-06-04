@@ -37,13 +37,50 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test outside reference to private item in old mod`() = doTestConflictsError("""
+    fun `test outside reference to private item of old mod`() = doTestConflictsError("""
     //- main.rs
         mod mod1 {
-            fn bar() {}
             fn foo/*caret*/() { bar(); }
+            fn bar() {}
         }
         mod mod2/*target*/ {}
+    """)
+
+    fun `test outside reference to private method of struct in old mod using UFCS`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() { Bar::bar(); }
+            pub struct Bar {}
+            impl Bar {
+                fn bar() {}  // private
+            }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test outside reference to public method of struct in old mod using UFCS`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() { Bar::bar(); }
+            pub struct Bar {}
+            impl Bar {
+                pub fn bar() {}  // public
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            pub struct Bar {}
+            impl Bar {
+                pub fn bar() {}  // public
+            }
+        }
+        mod mod2 {
+            use crate::mod1::Bar;
+
+            fn foo() { Bar::bar(); }
+        }
     """)
 
     fun `test inside reference, when new mod is private`() = doTestConflictsError("""

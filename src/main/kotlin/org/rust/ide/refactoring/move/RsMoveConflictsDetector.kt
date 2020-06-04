@@ -6,6 +6,7 @@
 package org.rust.ide.refactoring.move
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.parentsWithSelf
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.refactoring.util.RefactoringUIUtil
 import com.intellij.util.containers.MultiMap
@@ -51,9 +52,9 @@ class RsMoveConflictsDetector(
     }
 
     private fun detectPrivateStructFieldOutsideReferences(conflicts: MultiMap<PsiElement, String>) {
-        fun checkStructFieldVisibility(fieldReference: RsMandatoryReferenceElement) {
-            val field = fieldReference.reference.resolve() as? RsVisible ?: return
-            if (!field.isInsideMovedElements(elementsToMove)) checkVisibility(conflicts, fieldReference, field)
+        fun checkVisibility(reference: RsReferenceElement) {
+            val target = reference.reference?.resolve() as? RsVisible ?: return
+            if (!target.isInsideMovedElements(elementsToMove)) checkVisibility(conflicts, reference, target)
         }
 
         // todo also use this for inside references
@@ -61,7 +62,7 @@ class RsMoveConflictsDetector(
             when (element) {
                 is RsDotExpr -> {
                     val fieldReference = element.fieldLookup ?: element.methodCall ?: continue@loop
-                    checkStructFieldVisibility(fieldReference)
+                    checkVisibility(fieldReference)
                 }
                 is RsStructLiteralField -> {
                     val field = element.resolveToDeclaration() ?: continue@loop
@@ -69,7 +70,7 @@ class RsMoveConflictsDetector(
                 }
                 is RsPatField -> {
                     val patBinding = element.patBinding ?: continue@loop
-                    checkStructFieldVisibility(patBinding)
+                    checkVisibility(patBinding)
                 }
                 is RsPatTupleStruct -> {
                     // it is ok to use `resolve` and not `deepResolve` here
@@ -79,6 +80,16 @@ class RsMoveConflictsDetector(
                     val fields = struct.tupleFields?.tupleFieldDeclList ?: continue@loop
                     if (!fields.all { it.isVisibleFrom(targetMod) }) {
                         addVisibilityConflict(conflicts, element, struct)
+                    }
+                }
+                is RsPath -> {
+                    // conflicts for simple paths are handled using `pathNewAccessible`/`pathNewFallback` machinery
+                    val isInsideSimplePath = element.parentsWithSelf
+                        .takeWhile { it is RsPath }
+                        .any { isSimplePath(it as RsPath) }
+                    if (!isInsideSimplePath && element.basePath().text != "self" /* todo */) {
+                        // here we handle e.g. UFCS paths: `Struct1::method1`
+                        checkVisibility(element)
                     }
                 }
             }
