@@ -95,6 +95,105 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test move inherent impl without struct to different crate 1`() = doTestConflictsError("""
+    //- lib.rs
+        pub struct Foo {}
+        impl Foo/*caret*/ {}
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move inherent impl without struct to different crate 2`() = doTestConflictsError("""
+    //- lib.rs
+        pub mod foo1 {
+            pub struct Foo {}
+        }
+        pub mod foo2/*caret*/ {
+            use crate::foo1::Foo;
+            impl Foo {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move inherent impl without struct to same crate`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+            impl Foo/*caret*/ {}
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+        }
+        mod mod2 {
+            use crate::mod1::Foo;
+
+            impl Foo {}
+        }
+    """)
+
+    fun `test move struct without inherent impl to different crate 1`() = doTestConflictsError("""
+    //- main.rs
+        pub struct Foo/*caret*/ {}
+        impl Foo {}
+    //- lib.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move struct without inherent impl to different crate 2`() = doTestConflictsError("""
+    //- main.rs
+        pub mod foo1/*caret*/ {
+            pub struct Foo {}
+        }
+        pub mod foo2 {
+            use crate::foo1::Foo;
+            impl Foo {}
+        }
+    //- lib.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move struct without inherent impl to same crate`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            struct Foo/*caret*/ {}
+            impl Foo {}
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::mod2::Foo;
+
+            impl Foo {}
+        }
+        mod mod2 {
+            pub struct Foo {}
+        }
+    """)
+
+    fun `test move struct with inherent impl to different crate`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            struct Foo/*caret*/ {}
+            impl Foo/*caret*/ {}
+        }
+    //- lib.rs
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+    //- lib.rs
+        mod mod2 {
+            struct Foo {}
+
+            impl Foo {}
+        }
+    """)
+
     // todo add `pub` to fields too ?
     fun `test add pub to moved items if necessary`() = doTest("""
     //- main.rs

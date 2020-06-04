@@ -63,7 +63,7 @@ class RsMoveCommonProcessor(
         ?: error("Elements to move must belong to single parent mod")
 
     private val pathHelper: RsMovePathHelper = RsMovePathHelper(project, targetMod)
-    private val conflictsDetector: RsMoveConflictsDetector = RsMoveConflictsDetector(elementsToMove, targetMod)
+    private lateinit var conflictsDetector: RsMoveConflictsDetector
 
     private val useSpecksToOptimize: MutableList<RsUseSpeck> = mutableListOf()
 
@@ -97,8 +97,10 @@ class RsMoveCommonProcessor(
                     val insideReferences = preprocessInsideReferences(usages)
 
                     ProgressManager.getInstance().progressIndicator.text = message("detecting.possible.conflicts")
-                    conflictsDetector.detectOutsideReferencesVisibilityProblems(conflicts, outsideReferences)
-                    conflictsDetector.detectInsideReferencesVisibilityProblems(conflicts, insideReferences)
+                    conflictsDetector = RsMoveConflictsDetector(conflicts, elementsToMove, sourceMod, targetMod)
+                    conflictsDetector.detectOutsideReferencesVisibilityProblems(outsideReferences)
+                    conflictsDetector.detectInsideReferencesVisibilityProblems(insideReferences)
+                    conflictsDetector.checkImplementations()
 
                     preprocessOutsideReferencesToTraitMethods(conflicts)
                     preprocessInsideReferencesToTraitMethods(conflicts)
