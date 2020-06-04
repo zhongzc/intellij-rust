@@ -194,6 +194,69 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test move trait impl without trait to different crate 1`() = doTestConflictsError("""
+    //- lib.rs
+        pub trait Foo {}
+        impl Foo for ()/*caret*/ {}
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move trait impl without trait to different crate 2`() = doTestConflictsError("""
+    //- lib.rs
+        pub mod mod1 {
+            pub trait Foo {}
+            impl Foo for Bar/*caret*/ {}
+            pub struct Bar {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move trait impl without trait to different crate 3`() = doTestConflictsError("""
+    //- lib.rs
+        pub mod mod1 {
+            pub trait Foo<T> {}
+            impl Foo<Bar2> for Bar1/*caret*/ {}
+            pub struct Bar1 {}
+            pub struct Bar2 {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move trait impl with implementing type to different crate 1`() = doTestNoConflicts("""
+    //- lib.rs
+        pub mod mod1 {
+            pub trait Foo {}
+            impl Foo for Bar/*caret*/ {}
+            pub struct Bar/*caret*/ {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move trait impl with implementing type to different crate 2`() = doTestNoConflicts("""
+    //- lib.rs
+        pub mod mod1 {
+            pub trait Foo<T> {}
+            impl Foo<Bar> for ()/*caret*/ {}
+            pub struct Bar/*caret*/ {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
+    fun `test move trait with trait impl to different crate`() = doTestNoConflicts("""
+    //- lib.rs
+        pub mod mod1 {
+            pub trait Foo/*caret*/ {}
+            impl Foo for ()/*caret*/ {}
+        }
+    //- main.rs
+        pub mod mod2/*target*/ {}
+    """)
+
     // todo add `pub` to fields too ?
     fun `test add pub to moved items if necessary`() = doTest("""
     //- main.rs
@@ -545,51 +608,6 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             struct Foo {}
 
             impl Foo {}
-        }
-    """)
-
-    fun `test move trait impl together with struct`() = doTest("""
-    //- main.rs
-        mod mod1 {
-            use crate::bar::Bar;
-            struct Foo/*caret*/ {}
-            impl/*caret*/ Bar for Foo {}
-        }
-        mod mod2/*target*/ {}
-        mod bar {
-            pub trait Bar {}
-        }
-    """, """
-    //- main.rs
-        mod mod1 {
-            use crate::bar::Bar;
-        }
-        mod mod2 {
-            use crate::bar::Bar;
-
-            struct Foo {}
-
-            impl Bar for Foo {}
-        }
-        mod bar {
-            pub trait Bar {}
-        }
-    """)
-
-    fun `test move trait impl together with trait`() = doTest("""
-    //- main.rs
-        mod mod1 {
-            trait Foo/*caret*/ {}
-            impl/*caret*/ Foo for () {}
-        }
-        mod mod2/*target*/ {}
-    """, """
-    //- main.rs
-        mod mod1 {}
-        mod mod2 {
-            trait Foo {}
-
-            impl Foo for () {}
         }
     """)
 

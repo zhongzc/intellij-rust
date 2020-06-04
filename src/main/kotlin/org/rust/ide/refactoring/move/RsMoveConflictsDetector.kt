@@ -12,7 +12,10 @@ import com.intellij.refactoring.util.RefactoringUIUtil
 import com.intellij.util.containers.MultiMap
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
+import org.rust.lang.core.resolve.knownItems
+import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyAdt
+import org.rust.lang.core.types.ty.TyReference
 import org.rust.lang.core.types.type
 
 class RsMoveConflictsDetector(
@@ -114,23 +117,46 @@ class RsMoveConflictsDetector(
      *     - at least one of the types `T0..=Tn` is a local type
      * - Uncovering is not checking, because it is complicated
     */
-    fun checkImplementations() {
+    fun checkImpls() {
         if (sourceMod.crateRoot == targetMod.crateRoot) return
 
         val structsToMove = movedElementsDeepDescendantsOfType<RsStructOrEnumItemElement>(elementsToMove).toSet()
         val implsToMove = movedElementsDeepDescendantsOfType<RsImplItem>(elementsToMove)
-        val inherentImplsToMove = implsToMove.filter { it.traitRef == null }.toSet()
+        val (inherentImplsToMove, traitImplsToMove) = implsToMove
+            .partition { it.traitRef == null }
+            .run { Pair(first.toSet(), second.toSet()) }
 
-        checkStructIsMovedTogetherWithInherentImpl(inherentImplsToMove, structsToMove)
+        checkStructIsMovedTogetherWithInherentImpl(structsToMove, inherentImplsToMove)
         checkInherentImplIsMovedTogetherWithStruct(structsToMove, inherentImplsToMove)
+
+        traitImplsToMove.forEach(this::checkTraitImplIsCoherentAfterMove)
+    }
+
+    // https://doc.rust-lang.org/reference/items/implementations.html#trait-implementation-coherence
+    private fun checkTraitImplIsCoherentAfterMove(impl: RsImplItem) {
+        fun RsElement.isLocalAfterMove(): Boolean =
+            crateRoot == targetMod.crateRoot || isInsideMovedElements(elementsToMove)
+
+        val traitRef = impl.traitRef!!
+        val (trait, subst, _) = traitRef.resolveToBoundTrait() ?: return
+        if (trait.isLocalAfterMove()) return
+        val typeParameters = subst.typeSubst.values + (impl.typeReference?.type ?: return)
+        val anyTypeParameterIsLocal = typeParameters.any {
+            val ty = it.unwrapFundamentalTypes()
+            if (ty is TyAdt) ty.item.isLocalAfterMove() else false
+        }
+        if (!anyTypeParameterIsLocal) {
+            val message = "<a href=\"https://ya.ru\">Orphan rules</a> check failed for trait implementation after move"
+            conflicts.putValue(impl, message)
+        }
     }
 
     private fun checkStructIsMovedTogetherWithInherentImpl(
-        inherentImplsToMove: Set<RsImplItem>,
-        structsToMove: Set<RsStructOrEnumItemElement>
+        structsToMove: Set<RsStructOrEnumItemElement>,
+        inherentImplsToMove: Set<RsImplItem>
     ) {
         for (impl in inherentImplsToMove) {
-            val struct = impl.implementingType ?: continue
+            val struct = impl.implementingType?.item ?: continue
             if (struct !in structsToMove) {
                 val structDescription = RefactoringUIUtil.getDescription(struct, true)
                 val message = "Inherent implementation should be moved together with $structDescription"
@@ -148,7 +174,7 @@ class RsMoveConflictsDetector(
             // but usually struct and its inherent impls belong to same file
             val structInherentImpls = file.descendantsOfType<RsImplItem>()
                 .filter { it.traitRef == null }
-                .groupBy { it.implementingType }
+                .groupBy { it.implementingType?.item }
             for (struct in structsToMoveInFile) {
                 val impls = structInherentImpls[struct] ?: continue
                 for (impl in impls.filter { it !in inherentImplsToMove }) {
@@ -178,4 +204,21 @@ fun addVisibilityConflict(
     conflicts.putValue(reference, CommonRefactoringUtil.capitalize(message))
 }
 
-private val RsImplItem.implementingType: RsStructOrEnumItemElement? get() = (typeReference?.type as? TyAdt)?.item
+private val RsImplItem.implementingType: TyAdt? get() = typeReference?.type as? TyAdt
+
+// https://doc.rust-lang.org/reference/glossary.html#fundamental-type-constructors
+private fun Ty.unwrapFundamentalTypes(): Ty {
+    when (this) {
+        // &T -> T
+        // &mut T -> T
+        is TyReference -> return referenced
+        // Box<T> -> T
+        // Pin<T> -> T
+        is TyAdt -> {
+            if (item == item.knownItems.Box || item == item.knownItems.Pin) {
+                return typeArguments.singleOrNull() ?: this
+            }
+        }
+    }
+    return this
+}

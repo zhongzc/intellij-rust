@@ -100,7 +100,7 @@ class RsMoveCommonProcessor(
                     conflictsDetector = RsMoveConflictsDetector(conflicts, elementsToMove, sourceMod, targetMod)
                     conflictsDetector.detectOutsideReferencesVisibilityProblems(outsideReferences)
                     conflictsDetector.detectInsideReferencesVisibilityProblems(insideReferences)
-                    conflictsDetector.checkImplementations()
+                    conflictsDetector.checkImpls()
 
                     preprocessOutsideReferencesToTraitMethods(conflicts)
                     preprocessInsideReferencesToTraitMethods(conflicts)
@@ -259,10 +259,8 @@ class RsMoveCommonProcessor(
             // after move `path` will belong to `targetMod`
             pathNewFallbackText?.toRsPath(codeFragmentFactory, targetMod)
         } else {
-            // todo use `codeFragmentFactory.createPathInTmpMod`?
-            pathNewFallbackText?.toRsPath(psiFactory)
+            pathNewFallbackText?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
         }
-        // todo проверка resolvesToAndAccessible не работает, так как pathNewFallback внутри dummy file
         val pathNewAccessible = if (pathNewFallback.resolvesToAndAccessible(target)) {
             pathNewFallback
         } else {
@@ -545,21 +543,41 @@ class RsMoveCommonProcessor(
     private fun replacePathOld(reference: RsMoveReferenceInfo, pathNew: RsPath) {
         val pathOld = reference.pathOld
         val pathOldOriginal = reference.pathOldOriginal
+        if (pathOld.text == pathNew.text) return
         if (pathOld != pathOldOriginal) run {
-            // `mod1::func::<T>`
-            //  ^~~~~~~~~^ pathOld
-            //  ^~~~~~~~~~~~~~^ pathOldOriginal
             if (!pathOldOriginal.text.startsWith(pathOld.text)) return@run  // todo log error
-            val pathNewOriginalText = pathOldOriginal.text.replaceFirst(pathOld.text, pathNew.text)
-            val pathNewOriginal = pathNewOriginalText.toRsPath(psiFactory) ?: return@run
-            pathOldOriginal.replace(pathNewOriginal)
-            return
+            if (replacePathOldWithTypeArguments(pathOldOriginal, pathNew.text)) return
         }
 
         if (tryReplacePathOldInUseGroup(pathOldOriginal, pathNew)) return
 
-        if (pathOldOriginal.text == pathNew.text) return
         pathOldOriginal.replace(pathNew)
+    }
+
+    private fun replacePathOldWithTypeArguments(pathOldOriginal: RsPath, pathNewText: String): Boolean {
+        // `mod1::func::<T>`
+        //  ^~~~~~~~~^ pathOld - replace by pathNewText
+        //  ^~~~~~~~~~~~~~^ pathOldOriginal
+        // we should accurately replace `pathOld`, so that all `PsiElement`s related to `T` remain valid
+        // because T can contains `RsPath`s which also should be replaced later
+
+        fun RsPath.getIdentifierActual(): PsiElement = listOfNotNull(identifier, self, `super`, cself, crate).single()
+
+        with(pathOldOriginal) {
+            check(typeArgumentList != null)
+            path?.delete()
+            coloncolon?.delete()
+            getIdentifierActual().delete()
+            check(typeArgumentList != null)
+        }
+
+        val pathNew = pathNewText.toRsPath(psiFactory) ?: return false
+        val elements = listOfNotNull(pathNew.path, pathNew.coloncolon, pathNew.getIdentifierActual())
+        for (element in elements.asReversed()) {
+            pathOldOriginal.addAfter(element, null)
+        }
+        check(pathOldOriginal.text.startsWith(pathNewText))
+        return true
     }
 
     // consider we move `foo1` and `foo2` from `mod1` to `mod2`

@@ -76,9 +76,7 @@ class RsMoveTopLevelItemsProcessor(
     }
 
     override fun performRefactoring(usages: Array<out UsageInfo>) {
-        commonProcessor.performRefactoring(usages) {
-            moveItems()
-        }
+        commonProcessor.performRefactoring(usages, this::moveItems)
     }
 
     private fun moveItems(): MoveElementsResult {

@@ -60,6 +60,9 @@ fun String.toRsPath(psiFactory: RsPsiFactory): RsPath? =
 fun String.toRsPath(codeFragmentFactory: RsCodeFragmentFactory, context: RsElement): RsPath? =
     codeFragmentFactory.createPath(this, context)
 
+fun String.toRsPathInEmptyTmpMod(codeFragmentFactory: RsCodeFragmentFactory, context: RsMod): RsPath? =
+    codeFragmentFactory.createPathInEmptyTmpMod(this, context)
+
 fun RsPath.isAbsolute(): Boolean {
     if (text.startsWith("::")) return true
 

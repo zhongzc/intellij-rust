@@ -37,6 +37,9 @@ abstract class RsMoveTopLevelItemsTestBase : RsTestBase() {
             checkByDirectory(before.trimIndent(), "", true, ::performMove)
         }
 
+    protected fun doTestNoConflicts(@Language("Rust") before: String) =
+        checkByDirectory(before.trimIndent(), "", true, ::performMove)
+
     private fun performMove(testProject: TestProject) {
         val sourceFile = myFixture.findFileInTempDir(testProject.fileWithCaret).toPsiFile(project)!!
         val itemsToMove = sourceFile.getElementsAtMarker().map { it.parentOfType<RsItemElement>()!! }
