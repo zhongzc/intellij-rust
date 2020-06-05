@@ -220,6 +220,7 @@ fun RsVisRestriction.updateScopeIfNecessary(psiFactory: RsPsiFactory, newParent:
 
 // todo добавить тест когда context.containingMod == targetMod
 fun addImport(psiFactory: RsPsiFactory, context: RsElement, usePath: String) {
+    if (usePath == "crate") return
     val blockScope = context.ancestors.find { it is RsBlock && it.childOfType<RsUseItem>() != null } as RsBlock?
     val scope = blockScope ?: context.containingMod
     scope.insertUseItem(psiFactory, usePath)

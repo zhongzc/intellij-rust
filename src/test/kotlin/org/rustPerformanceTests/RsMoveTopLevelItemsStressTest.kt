@@ -35,6 +35,7 @@ class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
 
     fun `test move in Empty`() = doTest(EMPTY, repeats = 2)
     fun `test move in Cargo`() = doTest(CARGO, repeats = 100)
+    fun `test move in Clap`() = doTest(CLAP, repeats = 100)
 
     override fun tearDown() {}
 
@@ -74,10 +75,10 @@ class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
         println("Done")
     }
 
-    private fun moveRandomItem(allMods: List<RsMod>): Boolean {
+    private fun moveRandomItem(allMods: List<RsMod>, moveToSameCrate: Boolean = true): Boolean {
         val sourceMod = allMods.random()
         val targetMod = allMods.random()
-        if (sourceMod === targetMod) return false
+        if (sourceMod === targetMod || moveToSameCrate && sourceMod.crateRoot != targetMod.crateRoot) return false
 
         // todo random subset
         val itemToMove = sourceMod.children
@@ -118,7 +119,9 @@ class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
             .withWorkDirectory(path)
             .createProcess()
             .waitFor()
-        PsiDocumentManager.getInstance(project).commitAllDocuments()
-        fullyRefreshDirectoryInUnitTests(base)
+        // PsiDocumentManager.getInstance(project).commitAllDocuments()
+        // saveAllDocuments()
+        // fullyRefreshDirectoryInUnitTests(base)
+        // todo GitBrancher
     }
 }

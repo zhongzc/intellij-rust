@@ -647,33 +647,6 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test copy trait imports from old mod`() = doTest("""
-    //- main.rs
-        mod mod1 {
-            use crate::bar::Bar;
-            fn foo/*caret*/() { ().bar_func(); }
-        }
-        mod mod2/*target*/ {}
-        mod bar {
-            pub trait Bar { fn bar_func(&self) {} }
-            impl Bar for () {}
-        }
-    """, """
-    //- main.rs
-        mod mod1 {
-            use crate::bar::Bar;
-        }
-        mod mod2 {
-            use crate::bar::Bar;
-
-            fn foo() { ().bar_func(); }
-        }
-        mod bar {
-            pub trait Bar { fn bar_func(&self) {} }
-            impl Bar for () {}
-        }
-    """)
-
     // it is idiomatic to import parent mod for functions, and directly import structs/enums
     // https://doc.rust-lang.org/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html#creating-idiomatic-use-paths
     fun `test add usual imports for items in old mod`() = doTest("""
@@ -717,6 +690,46 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
                 inner::bar3();
                 let _ = Bar4 {};
             }
+        }
+    """)
+
+    fun `test outside reference to function in old mod when move from crate root`() = doTest("""
+    //- main.rs
+        fn foo/*caret*/() { bar(); }
+        fn bar() {}
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        fn bar() {}
+        mod mod2 {
+            fn foo() { crate::bar(); }
+        }
+    """)
+
+    fun `test copy trait imports from old mod`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar;
+            fn foo/*caret*/() { ().bar_func(); }
+        }
+        mod mod2/*target*/ {}
+        mod bar {
+            pub trait Bar { fn bar_func(&self) {} }
+            impl Bar for () {}
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar;
+        }
+        mod mod2 {
+            use crate::bar::Bar;
+
+            fn foo() { ().bar_func(); }
+        }
+        mod bar {
+            pub trait Bar { fn bar_func(&self) {} }
+            impl Bar for () {}
         }
     """)
 
