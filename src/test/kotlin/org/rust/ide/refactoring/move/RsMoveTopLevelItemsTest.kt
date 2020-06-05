@@ -1298,6 +1298,27 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test self references to moved submodule`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            mod foo1/*caret*/ {
+                pub fn func() {}
+            }
+            fn foo2/*caret*/() { foo1::func(); }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            mod foo1 {
+                pub fn func() {}
+            }
+
+            fn foo2() { foo1::func(); }
+        }
+    """)
+
     fun `test self references to generic item`() = doTest("""
     //- main.rs
         mod mod1 {

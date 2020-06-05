@@ -91,19 +91,20 @@ class RsMoveCommonProcessor(
         return ProgressManager.getInstance().runProcessWithProgressSynchronously(
             {
                 runReadAction {
-                    // todo two threads, one for inside, one for outside ?
-                    //  also parallelize `detectVisibilityProblems`
+                    // todo three threads:
+                    // - collectOutsideReferences + conflicts
+                    // - preprocessInsideReferences + conflicts
+                    // - checkImpls   ? +preprocess*TraitMethods
                     val outsideReferences = collectOutsideReferences()
                     val insideReferences = preprocessInsideReferences(usages)
+                    preprocessOutsideReferencesToTraitMethods(conflicts)
+                    preprocessInsideReferencesToTraitMethods(conflicts)
 
                     ProgressManager.getInstance().progressIndicator.text = message("detecting.possible.conflicts")
                     conflictsDetector = RsMoveConflictsDetector(conflicts, elementsToMove, sourceMod, targetMod)
                     conflictsDetector.detectOutsideReferencesVisibilityProblems(outsideReferences)
                     conflictsDetector.detectInsideReferencesVisibilityProblems(insideReferences)
                     conflictsDetector.checkImpls()
-
-                    preprocessOutsideReferencesToTraitMethods(conflicts)
-                    preprocessInsideReferencesToTraitMethods(conflicts)
                 }
             },
             message("refactoring.preprocess.usages.progress"),
@@ -124,6 +125,12 @@ class RsMoveCommonProcessor(
 
             val target = usage.referenceInfo.target
             target.putCopyableUserData(RS_TARGET_BEFORE_MOVE_KEY, target)
+
+            val pathOldOriginal = usage.referenceInfo.pathOldOriginal
+            if (pathOldOriginal.isInsideMovedElements(elementsToMove)) {
+                // todo cleanup if refactoring is cancelled ?
+                pathOldOriginal.putCopyableUserData(RS_PATH_BEFORE_MOVE_KEY, pathOldOriginal)
+            }
         }
         return originalReferences
     }
@@ -133,11 +140,9 @@ class RsMoveCommonProcessor(
 
         val isSelfReference = pathOriginal.isInsideMovedElements(elementsToMove)
         if (isSelfReference) {
-            // todo cleanup if refactoring is cancelled ?
-            pathOriginal.putCopyableUserData(RS_PATH_BEFORE_MOVE_KEY, pathOriginal)
             // after move path will be in `targetMod`
             // so we can refer to moved item just with its name
-            // todo ещё же надо проверять что target.containingMod == targetMod ?
+            check(target.containingMod == sourceMod)  // any inside reference is reference to moved item
             if (path.containingMod == sourceMod) {
                 val pathNew = target.name?.toRsPath(codeFragmentFactory, targetMod)
                 if (pathNew != null) return RsMoveReferenceInfo(path, pathOriginal, pathNew, pathNew, target)
@@ -210,6 +215,10 @@ class RsMoveCommonProcessor(
         val references = mutableListOf<RsMoveReferenceInfo>()
         for (path in movedElementsDeepDescendantsOfType<RsPath>(elementsToMove)) {
             if (path.parent is RsVisRestriction) continue
+            if (path.containingMod != sourceMod  // path inside nested mod of moved element
+                && !path.isAbsolute()
+                && !path.startsWithSuper()
+            ) continue
             if (!isSimplePath(path)) continue
             // TODO: support references to macros
             //  is is complicated: https://doc.rust-lang.org/reference/macros-by-example.html#scoping-exporting-and-importing
