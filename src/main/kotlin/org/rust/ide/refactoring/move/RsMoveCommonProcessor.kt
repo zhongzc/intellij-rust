@@ -41,6 +41,7 @@ data class MoveElementsResult(
     val oldToNewMap: Map<RsElement, RsElement>
 )
 
+// ? todo extract everything related to common to its directory `/common`?
 class RsMoveCommonProcessor(
     private val project: Project,
     private var elementsToMove: List<ElementToMove>,
@@ -283,6 +284,7 @@ class RsMoveCommonProcessor(
         return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target, forceAddImport)
     }
 
+    // todo ? extract everything related to preprocess*TraitMethods to separate file
     private fun preprocessOutsideReferencesToTraitMethods(conflicts: MultiMap<PsiElement, String>) {
         val methodCalls = movedElementsShallowDescendantsOfType<RsMethodCall>(elementsToMove)
             .filter { it.containingMod == sourceMod }
@@ -384,6 +386,8 @@ class RsMoveCommonProcessor(
                 val reference = pathOldOriginal.getCopyableUserData(RS_PATH_WRAPPER_KEY) ?: return@mapNotNull null
                 pathOldOriginal.putCopyableUserData(RS_PATH_WRAPPER_KEY, null)
                 // because after move new `RsElement`s are created
+                // todo make ReferenceInfo data class and use copy ?
+                //  or maybe not, зачем лишний раз аллоцировать
                 reference.pathOldOriginal = pathOldOriginal
                 reference.pathOld = pathOldOriginal.removeTypeArguments(codeFragmentFactory)
                 reference
@@ -497,14 +501,7 @@ class RsMoveCommonProcessor(
 
     // todo inline ?
     private fun retargetReferenceDirectly(reference: RsMoveReferenceInfo) {
-        val pathOld = reference.pathOld
         val pathNew = reference.pathNew ?: return
-        // todo more smart imports handling
-        if (pathOld.parent is RsUseSpeck && pathOld.parent.parent is RsUseItem && !pathNew.hasColonColon) {
-            pathOld.parent.parent.delete()
-            return
-        }
-
         replacePathOld(reference, pathNew)
     }
 
@@ -552,14 +549,20 @@ class RsMoveCommonProcessor(
     private fun replacePathOld(reference: RsMoveReferenceInfo, pathNew: RsPath) {
         val pathOld = reference.pathOld
         val pathOldOriginal = reference.pathOldOriginal
+
+        if (tryReplacePathOldInUseGroup(pathOldOriginal, pathNew)) return
+
         if (pathOld.text == pathNew.text) return
         if (pathOld != pathOldOriginal) run {
             if (!pathOldOriginal.text.startsWith(pathOld.text)) return@run  // todo log error
             if (replacePathOldWithTypeArguments(pathOldOriginal, pathNew.text)) return
         }
 
-        if (tryReplacePathOldInUseGroup(pathOldOriginal, pathNew)) return
-
+        // when moving `fn foo() { use crate::mod2::bar; ... }` to `mod2`, we can just delete this import
+        if (pathOld.parent is RsUseSpeck && pathOld.parent.parent is RsUseItem && !pathNew.hasColonColon) {
+            pathOld.parent.parent.delete()
+            return
+        }
         pathOldOriginal.replace(pathNew)
     }
 
@@ -599,10 +602,16 @@ class RsMoveCommonProcessor(
         val useGroup = useSpeck.parent as? RsUseGroup ?: return false
 
         pathOld.replace(pathNew)
-        useSpeck.containingMod.insertUseItem(psiFactory, useSpeck.text)
+        if (useSpeck.text.contains("::")) {
+            useSpeck.containingMod.insertUseItem(psiFactory, useSpeck.text)
+        }
 
         deleteUseSpeckInUseGroup(useSpeck)
         // todo group paths by RsUseItem and handle together ?
+        // consider pathOld == `foo1` in `use mod1::{foo1, foo2};`
+        // we just removed `foo1` from old use group and added new import: `use mod1::{foo2}; use mod2::foo1;`
+        // we can't optimize use speck right now,
+        // because otherwise `use mod1::{foo2};` becomes `use mod1::foo2;` which destroys`foo2` reference
         useSpecksToOptimize += useGroup.parentUseSpeck
         return true
     }
@@ -610,6 +619,7 @@ class RsMoveCommonProcessor(
     private fun optimizeUseSpeck(useSpeck: RsUseSpeck) {
         RsImportOptimizer.optimizeUseSpeck(psiFactory, useSpeck)
 
+        // todo move to RsImportOptimizer
         val useSpeckList = useSpeck.useGroup?.useSpeckList ?: return
         if (useSpeckList.isEmpty()) {
             when (val parent = useSpeck.parent) {

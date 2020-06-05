@@ -928,6 +928,33 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test outside references to items in new mod in use group`() = doTestIgnore("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                use crate::mod2::{bar1, bar2};
+                bar1();
+                bar2();
+            }
+        }
+        mod mod2/*target*/ {
+            pub fn bar1() {}
+            pub fn bar2() {}
+        }
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            pub fn bar1() {}
+            pub fn bar2() {}
+
+            fn foo() {
+                bar1();
+                bar2();
+            }
+        }
+    """)
+
     fun `test outside references to items in submodule of new mod`() = doTest("""
     //- main.rs
         mod mod1 {
@@ -1384,6 +1411,34 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             pub fn foo1() {}
 
             pub fn foo4() {}
+        }
+    """)
+
+    fun `test inside references from new mod in use group`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub fn foo1/*caret*/() {}
+            pub fn foo2/*caret*/() {}
+        }
+        mod mod2/*target*/ {
+            use crate::mod1::{foo1, foo2};
+            fn bar() {
+                foo1();
+                foo2();
+            }
+        }
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            fn bar() {
+                foo1();
+                foo2();
+            }
+
+            pub fn foo1() {}
+
+            pub fn foo2() {}
         }
     """)
 
