@@ -40,6 +40,8 @@ class RsMoveConflictsDetector(
                 itemsToMakePublic.add(reference.target)
             }
         }
+
+        detectPrivateFieldOrMethodInsideReferences()
     }
 
     fun detectOutsideReferencesVisibilityProblems(outsideReferences: List<RsMoveReferenceInfo>) {
@@ -52,14 +54,53 @@ class RsMoveConflictsDetector(
         detectPrivateFieldOrMethodOutsideReferences()
     }
 
+    // for now we check only references from `sourceMod`
+    // because for checking all references we should find them,
+    // and it would very slow when moving e.g. many files
+    private fun detectPrivateFieldOrMethodInsideReferences() {
+        val movedElementsShallowDescendants = movedElementsShallowDescendantsOfType<RsElement>(elementsToMove).toSet()
+        val sourceFile = sourceMod.containingFile
+        val elementsToCheck = sourceFile.descendantsOfType<RsElement>() - movedElementsShallowDescendants
+
+        // todo ? copy element to tmp mod (children of targetMod) and just call `isVisible`?
+        fun checkVisibility(referenceElement: RsElement, target: RsVisible) {
+            // it is enough to check only shallow descendants,
+            // because if something in deep descendants is private,
+            // then it was not accessible before move
+            if (target !in movedElementsShallowDescendants) return
+            // Enum variants in a pub enum are public by default
+            val isEnumVariant = target is RsNamedFieldDecl && target.parent.parent is RsEnumVariant
+            // Associated items in a pub Trait are public by default
+            val isTraitMethodOrAssociatedItem = target.parent is RsMembers
+            // todo restricted visibility
+            if (target.visibility == RsVisibility.Private && !isEnumVariant && !isTraitMethodOrAssociatedItem) {
+                addVisibilityConflict(conflicts, referenceElement, target)
+            }
+        }
+        detectPrivateFieldOrMethodReferences(elementsToCheck.asSequence(), ::checkVisibility)
+    }
+
     private fun detectPrivateFieldOrMethodOutsideReferences() {
-        fun checkVisibility(reference: RsReferenceElement) {
-            val target = reference.reference?.resolve() as? RsVisible ?: return
-            if (!target.isInsideMovedElements(elementsToMove)) checkVisibility(reference, target)
+        fun checkVisibility(referenceElement: RsElement, target: RsVisible) {
+            if (!target.isInsideMovedElements(elementsToMove) && !target.isVisibleFrom(targetMod)) {
+                addVisibilityConflict(conflicts, referenceElement, target)
+            }
         }
 
-        // todo also use this for inside references
-        loop@ for (element in movedElementsDeepDescendantsOfType<RsElement>(elementsToMove)) {
+        val elementsToCheck = movedElementsDeepDescendantsOfType<RsElement>(elementsToMove)
+        detectPrivateFieldOrMethodReferences(elementsToCheck, ::checkVisibility)
+    }
+
+    private fun detectPrivateFieldOrMethodReferences(
+        elementsToCheck: Sequence<RsElement>,
+        checkVisibility: (RsElement, RsVisible) -> Unit
+    ) {
+        fun checkVisibility(reference: RsReferenceElement) {
+            val target = reference.reference?.resolve() as? RsVisible ?: return
+            checkVisibility(reference, target)
+        }
+
+        loop@ for (element in elementsToCheck) {
             when (element) {
                 is RsDotExpr -> {
                     val fieldReference = element.fieldLookup ?: element.methodCall ?: continue@loop
@@ -67,7 +108,7 @@ class RsMoveConflictsDetector(
                 }
                 is RsStructLiteralField -> {
                     val field = element.resolveToDeclaration() ?: continue@loop
-                    if (!field.isInsideMovedElements(elementsToMove)) checkVisibility(element, field)
+                    checkVisibility(element, field)
                 }
                 is RsPatField -> {
                     val patBinding = element.patBinding ?: continue@loop
@@ -77,10 +118,9 @@ class RsMoveConflictsDetector(
                     // it is ok to use `resolve` and not `deepResolve` here
                     // because type aliases can't be used in destructuring tuple struct:
                     val struct = element.path.reference?.resolve() as? RsStructItem ?: continue@loop
-                    if (struct.isInsideMovedElements(elementsToMove)) continue@loop
                     val fields = struct.tupleFields?.tupleFieldDeclList ?: continue@loop
-                    if (!fields.all { it.isVisibleFrom(targetMod) }) {
-                        addVisibilityConflict(conflicts, element, struct)
+                    for (field in fields) {
+                        checkVisibility(element, field)
                     }
                 }
                 is RsPath -> {
@@ -185,19 +225,9 @@ class RsMoveConflictsDetector(
             }
         }
     }
-
-    private fun checkVisibility(referenceElement: RsReferenceElement, target: RsVisible) {
-        if (!target.isVisibleFrom(targetMod)) {
-            addVisibilityConflict(conflicts, referenceElement, target)
-        }
-    }
 }
 
-fun addVisibilityConflict(
-    conflicts: MultiMap<PsiElement, String>,
-    reference: RsElement,
-    target: RsElement
-) {
+fun addVisibilityConflict(conflicts: MultiMap<PsiElement, String>, reference: RsElement, target: RsElement) {
     val referenceDescription = RefactoringUIUtil.getDescription(reference.containingMod, true)
     val targetDescription = RefactoringUIUtil.getDescription(target, true)
     val message = "$referenceDescription uses $targetDescription which will be inaccessible after move"
