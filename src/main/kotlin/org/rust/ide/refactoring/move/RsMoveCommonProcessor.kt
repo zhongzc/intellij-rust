@@ -11,7 +11,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.DummyHolder
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.parentOfType
 import com.intellij.refactoring.RefactoringBundle.message
 import com.intellij.usageView.UsageInfo
@@ -420,82 +419,19 @@ class RsMoveCommonProcessor(
 
     // todo extract to separate file/class all functions related to retargetReferences ?
     private fun retargetReferences(referencesAll: List<RsMoveReferenceInfo>) {
-        val references = referencesAll.filter {
-            if (it.isInsideUseDirective || it.forceReplaceDirectly) {
-                retargetReferenceDirectly(it)
-                false
-            } else {
-                true
-            }
-        }
+        val (referencesDirectly, referencesOther) = referencesAll
+            .partition { it.isInsideUseDirective || it.forceReplaceDirectly }
 
-        val referencesByMod = references
-            .filterNot { it.pathOld.resolvesToAndAccessible(it.target) }
-            .groupBy { it.pathOld.containingMod }
-        for ((mod, referencesFromMod) in referencesByMod) {
-            retargetReferencesFromMod(mod, referencesFromMod)
-        }
-    }
-
-    private fun retargetReferencesFromMod(mod: RsMod, references: List<RsMoveReferenceInfo>) {
-        val referencesRemaining = references.filterNot {
-            tryRetargetIdiomaticReference(it)
-        }
-        retargetNonIdiomaticReferences(mod, referencesRemaining)
-    }
-
-    private fun tryRetargetIdiomaticReference(reference: RsMoveReferenceInfo): Boolean {
-        val pathOld = reference.pathOld
-        val pathNew = reference.pathNew ?: return false
-        check(pathOld.parentOfType<RsUseItem>() == null)  // todo remove ?
-        if (!pathNew.hasColonColon) {
-            replacePathOld(reference, pathNew)
-            return true
-        }
-
-        val target = reference.target
-        check(target !is RsMod)  // because of `convertToFullReference`
-        if (!reference.forceAddImport && !pathOld.isIdiomatic(target)) return false
-        return when (target) {
-            // handled by `convertToFullReference`
-            is RsMod -> false
-            is RsFunction -> replacePathWithIdiomaticImport(reference, pathNew, target)
-            // structs/enums/...
-            else -> {
-                // todo duplicate code
-                // todo `replacePathOld(..., addImport = false/true)` ?
-                val targetName = target.name ?: return false
-                addImport(psiFactory, pathOld, pathNew.text)
-
-                val pathNewShort = targetName.toRsPath(psiFactory)!!
-                replacePathOld(reference, pathNewShort)
-                return true
-            }
-        }
-    }
-
-    private fun replacePathWithIdiomaticImport(
-        reference: RsMoveReferenceInfo,
-        pathNew: RsPath,
-        target: RsFunction
-    ): Boolean {
-        val targetName = target.name ?: return false
-        check(pathNew.text.endsWith("::$targetName"))
-        val pathImport = pathNew.text.removeSuffix("::$targetName")
-        addImport(psiFactory, reference.pathOld, pathImport)
-
-        val pathNewShort = pathNew.text
-            .split("::")
-            .takeLast(2)
-            .joinToString("::")
-            .toRsPath(psiFactory)!!
-        replacePathOld(reference, pathNewShort)
-        return true
-    }
-
-    private fun retargetReferencesDirectly(references: List<RsMoveReferenceInfo>) {
-        for (reference in references) {
+        for (reference in referencesDirectly) {
             retargetReferenceDirectly(reference)
+        }
+        for (reference in referencesOther) {
+            val pathOld = reference.pathOld
+            if (pathOld.resolvesToAndAccessible(reference.target)) continue
+            val success = !pathOld.isAbsolute() && tryRetargetReferenceKeepExistingStyle(reference)
+            if (!success) {
+                retargetReferenceDirectly(reference)
+            }
         }
     }
 
@@ -505,45 +441,50 @@ class RsMoveCommonProcessor(
         replacePathOld(reference, pathNew)
     }
 
-    // few references with same path in file => replace path with absolute
-    // todo (может не надо, это всё-таки не idiomatic references?)
-    // many references => add new idiomatic import
-    @Suppress("UNUSED_PARAMETER")  // todo
-    private fun retargetNonIdiomaticReferences(mod: RsMod, references: List<RsMoveReferenceInfo>) {
-        fun retargetReferencesGroup(references: List<RsMoveReferenceInfo>, target: RsQualifiedNamedElement): Boolean {
-            if (references.size <= NUMBER_USAGES_THRESHOLD_FOR_ADDING_IMPORT) return false
-            val targetName = (target as? RsMod)?.modName ?: target.name ?: return false
+    private fun tryRetargetReferenceKeepExistingStyle(reference: RsMoveReferenceInfo): Boolean {
+        val pathOld = reference.pathOld
+        val pathNew = reference.pathNew ?: return false
 
-            val context = PsiTreeUtil.findCommonParent(references.map { it.pathOld }) as RsElement
-            val usePathFull = references.first().pathNew?.text ?: return false
-            // todo just log error
-            check(usePathFull.endsWith("::$targetName"))
+        val pathOldSegments = pathOld.text.split("::")
+        val pathNewSegments = pathNew.text.split("::")
+        if (pathOldSegments.size >= pathNewSegments.size && !pathOld.startsWithSuper()) return false
 
-            val (usePath, pathNewText) = if (target is RsFunction) {
-                // todo reuse code from `replacePathWithIdiomaticImport`
-                // todo use `RsPath::qualifier` instead ?
-                val usePathSegments = usePathFull.split("::")
-                val usePath = usePathSegments.dropLast(1).joinToString("::")
-                val pathNew = usePathSegments.takeLast(2).joinToString("::")
-                usePath to pathNew
-            } else {
-                usePathFull to targetName
-            }
+        val pathNewShortNumberSegments = adjustPathNewNumberSegments(reference, pathOldSegments.size)
+        val pathNewShortText = pathNewSegments
+            .takeLast(pathNewShortNumberSegments)
+            .joinToString("::")
+        val usePath = pathNewSegments
+            .take(pathNewSegments.size - pathNewShortNumberSegments + 1)
+            .joinToString("::")
 
-            addImport(psiFactory, context, usePath)
-            val pathNew = psiFactory.tryCreatePath(pathNewText)!!
-            for (reference in references) {
-                replacePathOld(reference, pathNew)
-            }
-            return true
+        addImport(psiFactory, reference.pathOldOriginal, usePath)
+        val pathNewShort = psiFactory.tryCreatePath(pathNewShortText) ?: return false  // todo log error
+        replacePathOld(reference, pathNewShort)
+        return true
+    }
+
+    // todo remove forceAddImport
+
+    // if `target` is struct/enum/... then we add import for this item
+    // if `target` is function then we add import for its `containingMod`
+    // https://doc.rust-lang.org/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html#creating-idiomatic-use-paths
+    private fun adjustPathNewNumberSegments(reference: RsMoveReferenceInfo, numberSegments: Int): Int {
+        val pathOldOriginal = reference.pathOldOriginal
+        val target = reference.target
+
+        // it is unclear how to replace relative reference starting with `super::` to keep its style
+        // so lets always add full import for such references
+        if (reference.pathOld.startsWithSuper()) {
+            return if (target is RsFunction) 2 else 1
         }
 
-        val referencesGrouped = references.groupBy { it.target }
-        val referencesRemaining = referencesGrouped
-            .filterNot { retargetReferencesGroup(it.value, it.key) }
-            .values.flatten()
-
-        retargetReferencesDirectly(referencesRemaining)
+        if (numberSegments != 1 || target !is RsFunction) return numberSegments
+        val isReferenceBetweenElementsInSourceMod =
+            // from item in source mod to moved item
+            pathOldOriginal.containingMod == sourceMod && target.containingMod == targetMod
+                // from moved item to item in source mod
+                || pathOldOriginal.containingMod == targetMod && target.containingMod == sourceMod
+        return if (isReferenceBetweenElementsInSourceMod) 2 else numberSegments
     }
 
     private fun replacePathOld(reference: RsMoveReferenceInfo, pathNew: RsPath) {
@@ -662,8 +603,6 @@ class RsMoveCommonProcessor(
     }
 
     companion object {
-        // todo change to 1 ?
-        private const val NUMBER_USAGES_THRESHOLD_FOR_ADDING_IMPORT: Int = 2
         private val RS_PATH_WRAPPER_KEY: Key<RsMoveReferenceInfo> = Key.create("RS_PATH_WRAPPER_KEY")
         private val RS_PATH_BEFORE_MOVE_KEY: Key<RsPath> = Key.create("RS_PATH_BEFORE_MOVE_KEY")
         private val RS_TARGET_BEFORE_MOVE_KEY: Key<RsQualifiedNamedElement> = Key.create("RS_TARGET_BEFORE_MOVE_KEY")

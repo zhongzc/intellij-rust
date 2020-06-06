@@ -151,8 +151,10 @@ class RsMoveFileVisibilityTest : RsMoveFileTestBase() {
     //- mod2/mod.rs
         mod foo;
     //- mod2/foo.rs
+        use crate::mod1;
+
         fn func() {
-            crate::mod1::mod1_func();
+            mod1::mod1_func();
         }
     """)
 

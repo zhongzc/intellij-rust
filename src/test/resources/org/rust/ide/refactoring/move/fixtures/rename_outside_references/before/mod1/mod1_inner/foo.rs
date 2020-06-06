@@ -1,10 +1,6 @@
 fn func() {}
 
 fn test1() {
-    super::super::mod1_func();
-}
-
-fn test2() {
     use super::mod1_inner_func;
     mod1_inner_func();
 
@@ -12,7 +8,7 @@ fn test2() {
     mod1_func();
 }
 
-fn test3() {
+fn test2() {
     use super::*;
     mod1_inner_func();
 
@@ -20,7 +16,7 @@ fn test3() {
     mod1_func();
 }
 
-fn test4() {
+fn test3() {
     foo_inner1::foo_inner1_func();
     foo_inner1::foo_inner2::foo_inner2_func();
 }

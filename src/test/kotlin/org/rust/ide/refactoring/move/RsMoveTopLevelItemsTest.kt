@@ -796,7 +796,42 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test outside references which starts with super`() = doTest("""
+    fun `test outside references which starts with super 1`() = doTest("""
+    //- main.rs
+        mod inner1 {
+            pub fn inner1_func() {}
+            pub mod inner2 {
+                pub fn inner2_func() {}
+                mod mod1 {
+                    fn foo/*caret*/() {
+                        super::super::inner1_func();
+                        super::inner2_func();
+                    }
+                }
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod inner1 {
+            pub fn inner1_func() {}
+            pub mod inner2 {
+                pub fn inner2_func() {}
+                mod mod1 {}
+            }
+        }
+        mod mod2 {
+            use crate::inner1;
+            use crate::inner1::inner2;
+
+            fn foo() {
+                inner1::inner1_func();
+                inner2::inner2_func();
+            }
+        }
+    """)
+
+    fun `test outside references which starts with super 2`() = doTest("""
     //- main.rs
         mod inner1 {
             pub fn inner1_func() {}
@@ -804,11 +839,6 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
                 pub fn inner2_func() {}
                 mod mod1 {
                     fn foo1/*caret*/() {
-                        super::super::inner1_func();
-                        super::inner2_func();
-                    }
-
-                    fn foo2/*caret*/() {
                         use super::super::inner1_func;
                         inner1_func();
 
@@ -816,7 +846,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
                         inner2_func();
                     }
 
-                    fn foo3/*caret*/() {
+                    fn foo2/*caret*/() {
                         use super::super::*;
                         inner1_func();
 
@@ -837,14 +867,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             }
         }
         mod mod2 {
-            use crate::inner1::inner2;
-
             fn foo1() {
-                crate::inner1::inner1_func();
-                inner2::inner2_func();
-            }
-
-            fn foo2() {
                 use crate::inner1::inner1_func;
                 inner1_func();
 
@@ -852,7 +875,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
                 inner2_func();
             }
 
-            fn foo3() {
+            fn foo2() {
                 use crate::inner1::*;
                 inner1_func();
 
@@ -1279,7 +1302,9 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
 
             mod foo2 {
                 use crate::mod1::*;
-                fn test() { crate::mod2::bar2(); }
+                use crate::mod2::bar2;
+
+                fn test() { bar2(); }
             }
 
             fn bar1() {}
@@ -1480,7 +1505,8 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             mod inner3 {
                 fn test() {
                     use crate::mod1::*;
-                    crate::mod2::foo();
+                    use crate::mod2::foo;
+                    foo();
                 }
             }
 
@@ -1524,9 +1550,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    // todo add link to "How to replace paths"
-    // idiomatic references: keep its style
-    fun `test inside references (idiomatic)`() = doTest("""
+    fun `test inside references absolute`() = doTest("""
     //- main.rs
         mod mod1 {
             pub fn foo1/*caret*/() {}
@@ -1534,13 +1558,11 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
         mod mod2/*target*/ {}
 
-        mod usage1 {
-            use crate::mod1;
-            fn test() { mod1::foo1(); }
-        }
-        mod usage2 {
-            use crate::mod1::Foo2;
-            fn test() { let _ = Foo2 {}; }
+        mod usage {
+            fn test() {
+                crate::mod1::foo1();
+                let _ = crate::mod1::Foo2 {};
+            }
         }
     """, """
     //- main.rs
@@ -1551,143 +1573,153 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             pub struct Foo2 {}
         }
 
-        mod usage1 {
-            use crate::{mod1, mod2};
-            fn test() { mod2::foo1(); }
+        mod usage {
+            fn test() {
+                crate::mod2::foo1();
+                let _ = crate::mod2::Foo2 {};
+            }
         }
-        mod usage2 {
+    """)
+
+    fun `test inside references starting with super`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub fn foo1/*caret*/() {}
+            pub struct Foo2/*caret*/ {}
+
+            mod usage {
+                fn test() {
+                    super::foo1();
+                    let _ = super::Foo2 {};
+                }
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            mod usage {
+                use crate::mod2;
+                use crate::mod2::Foo2;
+
+                fn test() {
+                    mod2::foo1();
+                    let _ = Foo2 {};
+                }
+            }
+        }
+        mod mod2 {
+            pub fn foo1() {}
+
+            pub struct Foo2 {}
+        }
+    """)
+
+    fun `test inside references with fully qualified import`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub fn foo1/*caret*/() {}
+            pub struct Foo2/*caret*/ {}
+        }
+        mod mod2/*target*/ {}
+
+        mod usage {
+            use crate::mod1::foo1;
+            use crate::mod1::Foo2;
+            fn test() {
+                foo1();
+                let _ = Foo2 {};
+            }
+        }
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            pub fn foo1() {}
+
+            pub struct Foo2 {}
+        }
+
+        mod usage {
+            use crate::mod2::foo1;
             use crate::mod2::Foo2;
-            fn test() { let _ = Foo2 {}; }
+            fn test() {
+                foo1();
+                let _ = Foo2 {};
+            }
         }
     """)
 
-    // non-idiomatic references:
-    // - few usages of this path in the file => replace path with absolute
-    // - many usages => add new idiomatic import
-    fun `test inside references to function (non-idiomatic)`() = doTest("""
+    fun `test inside references with import for parent mod`() = doTest("""
     //- main.rs
         mod mod1 {
-            pub fn foo/*caret*/() {}
+            pub fn foo1/*caret*/() {}
+            pub struct Foo2/*caret*/ {}
         }
         mod mod2/*target*/ {}
 
-        mod usage1 {
-            fn test() { crate::mod1::foo(); }
-        }
-        mod usage2 {
-            use crate::mod1::foo;
-            fn test() { foo(); }
-        }
-        mod usage3 {
-            use crate::mod1::*;
-            fn test() { foo(); }
-        }
-        mod usage4 {
-            use crate::mod1::foo;
+        mod usage {
+            use crate::mod1;
             fn test() {
-                foo();
-                foo();
-                foo();
-            }
-        }
-        mod usage5 {
-            use crate::mod1::*;
-            fn test() {
-                foo();
-                foo();
-                foo();
+                mod1::foo1();
+                let _ = mod1::Foo2 {};
             }
         }
     """, """
     //- main.rs
         mod mod1 {}
         mod mod2 {
-            pub fn foo() {}
+            pub fn foo1() {}
+
+            pub struct Foo2 {}
         }
 
-        mod usage1 {
-            fn test() { crate::mod2::foo(); }
-        }
-        mod usage2 {
-            use crate::mod2::foo;
-            fn test() { foo(); }
-        }
-        mod usage3 {
-            use crate::mod1::*;
-            fn test() { crate::mod2::foo(); }
-        }
-        mod usage4 {
-            use crate::mod2::foo;
+        mod usage {
+            use crate::{mod1, mod2};
             fn test() {
-                foo();
-                foo();
-                foo();
-            }
-        }
-        mod usage5 {
-            use crate::mod1::*;
-            use crate::mod2;
-
-            fn test() {
-                mod2::foo();
-                mod2::foo();
-                mod2::foo();
+                mod2::foo1();
+                let _ = mod2::Foo2 {};
             }
         }
     """)
 
-    fun `test inside references to struct (non-idiomatic)`() = doTest("""
+    fun `test inside references with import for grandparent mod`() = doTest("""
     //- main.rs
-        mod mod1 {
-            pub struct Foo/*caret*/ {}
+        mod inner1 {
+            pub mod mod1 {
+                pub fn foo1/*caret*/() {}
+                pub struct Foo2/*caret*/ {}
+            }
         }
-        mod mod2/*target*/ {}
+        mod inner2 {
+            pub mod mod2/*target*/ {}
+        }
 
-        mod usage1 {
-            fn test() { let _ = crate::mod1::Foo {}; }
-        }
-        mod usage2 {
-            use crate::mod1;
-            fn test() { let _ = mod1::Foo {}; }
-        }
-        mod usage3 {
-            use crate::*;
-            fn test() { let _ = mod1::Foo {}; }
-        }
-        mod usage4 {
-            use crate::mod1;
+        mod usage {
+            use crate::inner1;
             fn test() {
-                let _ = mod1::Foo {};
-                let _ = mod1::Foo {};
-                let _ = mod1::Foo {};
+                inner1::mod1::foo1();
+                let _ = inner1::mod1::Foo2 {};
             }
         }
     """, """
     //- main.rs
-        mod mod1 {}
-        mod mod2 {
-            pub struct Foo {}
+        mod inner1 {
+            pub mod mod1 {}
+        }
+        mod inner2 {
+            pub mod mod2 {
+                pub fn foo1() {}
+
+                pub struct Foo2 {}
+            }
         }
 
-        mod usage1 {
-            fn test() { let _ = crate::mod2::Foo {}; }
-        }
-        mod usage2 {
-            use crate::mod1;
-            fn test() { let _ = crate::mod2::Foo {}; }
-        }
-        mod usage3 {
-            use crate::*;
-            fn test() { let _ = crate::mod2::Foo {}; }
-        }
-        mod usage4 {
-            use crate::mod1;
-            use crate::mod2::Foo;
-
+        mod usage {
+            use crate::{inner1, inner2};
             fn test() {
-                let _ = Foo {};
-                let _ = Foo {};
-                let _ = Foo {};
+                inner2::mod2::foo1();
+                let _ = inner2::mod2::Foo2 {};
             }
         }
     """)

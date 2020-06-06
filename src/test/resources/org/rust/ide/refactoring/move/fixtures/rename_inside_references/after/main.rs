@@ -25,8 +25,8 @@ mod usages3 {
 
 mod usages4 {
     fn test() {
-        use crate::mod1;
-        crate::mod2::foo::func();
+        use crate::{mod1, mod2};
+        mod2::foo::func();
     }
 }
 

@@ -65,7 +65,9 @@ fun String.toRsPathInEmptyTmpMod(codeFragmentFactory: RsCodeFragmentFactory, con
 
 fun RsPath.isAbsolute(): Boolean {
     if (text.startsWith("::")) return true
+    if (startsWithSuper()) return false
 
+    check(containingFile !is DummyHolder)
     val basePathTarget = basePath().reference?.resolve() as? RsMod ?: return false
     return basePathTarget.isCrateRoot
 }

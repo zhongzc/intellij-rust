@@ -105,15 +105,8 @@ class RsMoveFileReexportTest : RsMoveFileTestBase() {
             mod mod2;  // private
             pub use mod2::*;
         }
-        mod usages1 {
+        mod usages {
             fn test() {
-                crate::inner::mod1::foo::func();
-            }
-        }
-        mod usages2 {
-            fn test() {
-                crate::inner::mod1::foo::func();
-                crate::inner::mod1::foo::func();
                 crate::inner::mod1::foo::func();
             }
         }
@@ -130,18 +123,9 @@ class RsMoveFileReexportTest : RsMoveFileTestBase() {
             mod mod2;  // private
             pub use mod2::*;
         }
-        mod usages1 {
+        mod usages {
             fn test() {
                 crate::inner::foo::func();
-            }
-        }
-        mod usages2 {
-            use crate::inner::foo;
-
-            fn test() {
-                foo::func();
-                foo::func();
-                foo::func();
             }
         }
     //- inner/mod1/mod.rs
@@ -216,10 +200,12 @@ class RsMoveFileReexportTest : RsMoveFileTestBase() {
         pub fn mod1_func() {}
     //- mod2/mod.rs
     //- mod1/foo.rs
-        fn test1() {
-            super::mod1_func();
-            super::inner1::inner1_func();
-            super::inner1::inner2_func();
+        mod test1 {
+            fn func() {
+                super::super::mod1_func();
+                super::super::inner1::inner1_func();
+                super::super::inner1::inner2_func();
+            }
         }
         fn test2() {
             use super::inner1::inner2_func;
@@ -246,12 +232,15 @@ class RsMoveFileReexportTest : RsMoveFileTestBase() {
     //- mod2/mod.rs
         mod foo;
     //- mod2/foo.rs
-        use crate::mod1;
+        mod test1 {
+            use crate::mod1;
+            use crate::mod1::inner1;
 
-        fn test1() {
-            mod1::mod1_func();
-            crate::mod1::inner1::inner1_func();
-            crate::mod1::inner1::inner2_func();
+            fn func() {
+                mod1::mod1_func();
+                inner1::inner1_func();
+                inner1::inner2_func();
+            }
         }
         fn test2() {
             use crate::mod1::inner1::inner2_func;

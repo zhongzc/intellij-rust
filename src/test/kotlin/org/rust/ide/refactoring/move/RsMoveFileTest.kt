@@ -15,8 +15,6 @@ import org.rust.cargo.project.workspace.CargoWorkspace
 class RsMoveFileTest : RsMoveFileTestBase() {
     override val dataPath = "org/rust/ide/refactoring/move/fixtures/"
 
-    fun `test add import if there are many usages`() = doTest("mod1/foo.rs", "mod2")
-
     fun `test rename inside references`() = doTest("mod1/foo.rs", "mod2")
 
     fun `test rename outside references`() = doTest("mod1/mod1_inner/foo.rs", "mod2")
@@ -151,11 +149,10 @@ class RsMoveFileTest : RsMoveFileTestBase() {
             func();
         }
         fn test2() {
-            use test_package::mod1;
-            use test_package::mod2::foo;
-            foo::func();
-            foo::func();
-            foo::func();
+            use test_package::{mod1, mod2};
+            mod2::foo::func();
+            mod2::foo::func();
+            mod2::foo::func();
         }
     //- lib.rs
         pub mod mod1;
