@@ -60,6 +60,7 @@ class RsMoveCommonProcessor(
     private lateinit var conflictsDetector: RsMoveConflictsDetector
 
     private val useSpecksToOptimize: MutableList<RsUseSpeck> = mutableListOf()
+    private val filesToOptimizeImports: MutableSet<RsFile> = mutableSetOf()
 
     fun convertToMoveUsages(usages: Array<UsageInfo>): Array<UsageInfo> {
         return usages
@@ -330,7 +331,7 @@ class RsMoveCommonProcessor(
             .map { it.referenceInfo }
         updateInsideReferenceInfosIfNeeded(insideReferences)
         retargetReferences(insideReferences)
-        useSpecksToOptimize.forEach { optimizeUseSpeck(it) }
+        optimizeImports()
     }
 
     private fun updateOutsideReferencesInVisRestrictions() {
@@ -352,7 +353,7 @@ class RsMoveCommonProcessor(
             val (trait, traitUsePath) = methodCall.getCopyableUserData(RS_METHOD_CALL_TRAIT_USE_PATH) ?: continue
             // can't check `methodCall.reference.resolve() != null`, because it is always not null
             if (listOf(trait).filterInScope(methodCall).isNotEmpty()) continue
-            addImport(psiFactory, methodCall, traitUsePath)
+            addImport(methodCall, traitUsePath)
         }
     }
 
@@ -434,7 +435,7 @@ class RsMoveCommonProcessor(
             .take(pathNewSegments.size - pathNewShortNumberSegments + 1)
             .joinToString("::")
 
-        addImport(psiFactory, reference.pathOldOriginal, usePath)
+        addImport(reference.pathOldOriginal, usePath)
         val pathNewShort = pathNewShortText.toRsPath(psiFactory) ?: return false  // todo log error
         replacePathOld(reference, pathNewShort)
         return true
@@ -532,6 +533,18 @@ class RsMoveCommonProcessor(
         // because otherwise `use mod1::{foo2};` becomes `use mod1::foo2;` which destroys`foo2` reference
         useSpecksToOptimize += useGroup.parentUseSpeck
         return true
+    }
+
+    fun addImport(context: RsElement, usePath: String) {
+        addImport(psiFactory, context, usePath)
+        filesToOptimizeImports.add(context.containingFile as RsFile)
+    }
+
+    private fun optimizeImports() {
+        useSpecksToOptimize.forEach { optimizeUseSpeck(it) }
+
+        filesToOptimizeImports.addAll(useSpecksToOptimize.mapNotNull { it.containingFile as? RsFile })
+        filesToOptimizeImports.forEach { RsImportOptimizer().executeForUseItem(it) }
     }
 
     private fun optimizeUseSpeck(useSpeck: RsUseSpeck) {

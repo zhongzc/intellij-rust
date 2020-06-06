@@ -1297,6 +1297,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         mod mod2 {
             mod foo1 {
                 use crate::{mod1, mod2};
+
                 fn test() { mod2::bar1(); }
             }
 
@@ -1334,6 +1335,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         mod mod2 {
             mod foo1 {
                 use crate::mod2::Bar1;
+
                 fn test() { let _ = Bar1 {}; }
             }
 
@@ -1676,6 +1678,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
 
         mod usage {
             use crate::{mod1, mod2};
+
             fn test() {
                 mod2::foo1();
                 let _ = mod2::Foo2 {};
@@ -1697,6 +1700,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
 
         mod usage {
             use crate::inner1;
+
             fn test() {
                 inner1::mod1::foo1();
                 let _ = inner1::mod1::Foo2 {};
@@ -1717,6 +1721,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
 
         mod usage {
             use crate::{inner1, inner2};
+
             fn test() {
                 inner2::mod2::foo1();
                 let _ = inner2::mod2::Foo2 {};

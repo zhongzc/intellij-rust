@@ -39,7 +39,7 @@ class RsImportOptimizer : ImportOptimizer {
         externCrateItems.forEach { it.delete() }
     }
 
-    private fun executeForUseItem(mod: RsMod) {
+    fun executeForUseItem(mod: RsMod) {
         val uses = mod.childrenOfType<RsUseItem>()
         if (uses.isNotEmpty()) {
             replaceOrderOfUseItems(mod, uses)
