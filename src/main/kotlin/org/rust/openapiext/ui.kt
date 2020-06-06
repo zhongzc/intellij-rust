@@ -10,6 +10,8 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextComponentAccessor
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
@@ -17,6 +19,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.Alarm
+import org.rust.lang.RsFileType
 import javax.swing.event.DocumentEvent
 import kotlin.reflect.KProperty
 
@@ -56,20 +59,20 @@ fun pathToDirectoryTextField(
         onTextChanged
     )
 
-//fun pathToRsFileTextField(
-//    disposable: Disposable,
-//    title: String,
-//    onTextChanged: () -> Unit = {}
-//): TextFieldWithBrowseButton {
-//    return pathTextField(
-//        FileChooserDescriptorFactory
-//            .createSingleFileDescriptor(RsFileType)
-//            .withRoots(project.guessProjectDir()),
-//        disposable,
-//        title,
-//        onTextChanged
-//    )
-//}
+fun pathToRsFileTextField(
+    disposable: Disposable,
+    title: String,
+    project: Project,
+    onTextChanged: () -> Unit = {}
+): TextFieldWithBrowseButton =
+    pathTextField(
+        FileChooserDescriptorFactory
+            .createSingleFileDescriptor(RsFileType)
+            .withRoots(project.guessProjectDir()),
+        disposable,
+        title,
+        onTextChanged
+    )
 
 fun pathTextField(
     fileChooserDescriptor: FileChooserDescriptor,

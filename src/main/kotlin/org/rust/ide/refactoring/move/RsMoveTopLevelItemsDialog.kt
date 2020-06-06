@@ -5,10 +5,7 @@
 
 package org.rust.ide.refactoring.move
 
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.project.guessProjectDir
-import com.intellij.openapi.ui.TextComponentAccessor
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.refactoring.RefactoringBundle.message
@@ -17,9 +14,9 @@ import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.layout.panel
 import com.intellij.util.IncorrectOperationException
-import org.rust.lang.RsFileType
 import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
+import org.rust.openapiext.pathToRsFileTextField
 import org.rust.openapiext.toPsiFile
 import java.awt.Dimension
 import java.io.File
@@ -44,16 +41,15 @@ class RsMoveTopLevelItemsDialog(
     }
 
     private fun createTargetFileChooser(project: Project): TextFieldWithBrowseButton {
-        val chooser = TextFieldWithBrowseButton(null, disposable)
-        val fileChooserDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor(RsFileType)
-            .withRoots(project.guessProjectDir())
-        chooser.addBrowseFolderListener("Choose Destination File", null, project,
-            fileChooserDescriptor, TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT)
-
+        val chooser = pathToRsFileTextField(
+            disposable,
+            "Choose Destination File",
+            project,
+            this::validateButtons
+        )
         chooser.text = sourceFilePath
         chooser.textField.caretPosition = sourceFilePath.removeSuffix(".rs").length
         chooser.textField.moveCaretPosition(sourceFilePath.lastIndexOf('/') + 1)
-
         return chooser
     }
 
@@ -74,6 +70,10 @@ class RsMoveTopLevelItemsDialog(
                 }
             }
         }
+
+        validateButtons()
+        memberPanel.table.model.addTableModelListener { validateButtons() }
+
         panel.preferredSize = Dimension(600, 400)
         return panel
     }
@@ -94,6 +94,16 @@ class RsMoveTopLevelItemsDialog(
         return containingMod.children
             .filterIsInstance<RsItemElement>()
             .filter { RsMoveTopLevelItemsHandler.canMoveElement(it) }
+    }
+
+    override fun areButtonsValid(): Boolean {
+        // `memberPanel` is initialized after `createTargetFileChooser`,
+        // which triggers `areButtonsValid` check
+        @Suppress("SENSELESS_COMPARISON")
+        if (memberPanel == null) return false
+
+        return sourceFilePath != targetFileChooser.text
+            && memberPanel.table.selectedMemberInfos.isNotEmpty()
     }
 
     override fun doAction() {

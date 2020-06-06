@@ -5,8 +5,10 @@
 
 package org.rustPerformanceTests
 
+import com.intellij.dvcs.DvcsUtil
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.refactoring.BaseRefactoringProcessor.ConflictsInTestsException
@@ -27,6 +29,7 @@ import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.descendantsOfType
 import org.rust.openapiext.pathAsPath
+import org.rust.openapiext.saveAllDocuments
 import org.rust.openapiext.toPsiFile
 import org.rust.openapiext.withWorkDirectory
 
@@ -112,16 +115,17 @@ class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
     }
 
     private fun gitHardReset(base: VirtualFile) {
-        println("Restoring repository state")
-        val path = base.pathAsPath
-        check(!path.toString().contains("intellij-rust"))
-        GeneralCommandLine("git", "reset", "--hard")
-            .withWorkDirectory(path)
-            .createProcess()
-            .waitFor()
-        // PsiDocumentManager.getInstance(project).commitAllDocuments()
-        // saveAllDocuments()
-        // fullyRefreshDirectoryInUnitTests(base)
-        // todo GitBrancher
+        saveAllDocuments()
+
+        DvcsUtil.workingTreeChangeStarted(project, null).use {
+            println("Restoring repository state")
+            val path = base.pathAsPath
+            check(!path.toString().contains("intellij-rust"))
+            GeneralCommandLine("git", "reset", "--hard")
+                .withWorkDirectory(path)
+                .createProcess()
+                .waitFor()
+            VfsUtil.markDirtyAndRefresh(false, true, false, base)
+        }
     }
 }

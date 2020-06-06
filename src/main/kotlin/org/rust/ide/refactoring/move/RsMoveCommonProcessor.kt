@@ -14,6 +14,7 @@ import com.intellij.psi.impl.source.DummyHolder
 import com.intellij.psi.util.parentOfType
 import com.intellij.refactoring.RefactoringBundle.message
 import com.intellij.usageView.UsageInfo
+import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.annotator.fixes.MakePublicFix
 import org.rust.ide.inspections.import.RsImportHelper
@@ -61,6 +62,11 @@ class RsMoveCommonProcessor(
 
     private val useSpecksToOptimize: MutableList<RsUseSpeck> = mutableListOf()
     private val filesToOptimizeImports: MutableSet<RsFile> = mutableSetOf()
+
+    init {
+        if (elementsToMove.isEmpty()) throw IncorrectOperationException("No items to move")
+        if (targetMod == sourceMod) throw IncorrectOperationException("Source and destination modules should be different")
+    }
 
     fun convertToMoveUsages(usages: Array<UsageInfo>): Array<UsageInfo> {
         return usages

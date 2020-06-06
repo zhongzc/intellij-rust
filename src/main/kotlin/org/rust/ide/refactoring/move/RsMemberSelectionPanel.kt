@@ -52,8 +52,9 @@ class RsMemberInfo(member: RsItemElement) : MemberInfoBase<RsItemElement>(member
         displayName = if (member is RsModItem) {
             "mod ${member.modName}"
         } else {
-            val description = buildString { member.signature(this) }
-            StringEscapeUtils.unescapeHtml(StringUtil.removeHtmlTags(description))
+            val descriptionHTML = buildString { member.signature(this) }
+            val description = StringEscapeUtils.unescapeHtml(StringUtil.removeHtmlTags(descriptionHTML))
+            description.replace("(?U)\\s+".toRegex(), " ")
         }
     }
 }

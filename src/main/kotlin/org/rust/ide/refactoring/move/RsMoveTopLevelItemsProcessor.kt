@@ -15,7 +15,6 @@ import com.intellij.refactoring.BaseRefactoringProcessor
 import com.intellij.refactoring.move.MoveMultipleElementsViewDescriptor
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewDescriptor
-import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.lang.core.psi.RsModItem
 import org.rust.lang.core.psi.ext.RsItemElement
@@ -32,10 +31,6 @@ class RsMoveTopLevelItemsProcessor(
     private val commonProcessor: RsMoveCommonProcessor = run {
         val elementsToMove = itemsToMove.map { ElementToMove.fromItem(it) }
         RsMoveCommonProcessor(project, elementsToMove, targetMod)
-    }
-
-    init {
-        if (itemsToMove.isEmpty()) throw IncorrectOperationException("No items to move")
     }
 
     override fun findUsages(): Array<UsageInfo> {
