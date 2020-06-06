@@ -34,12 +34,6 @@ sealed class ElementToMove {
 class ItemToMove(val item: RsItemElement) : ElementToMove()
 class ModToMove(val mod: RsMod) : ElementToMove()
 
-data class MoveElementsResult(
-    val elementsNew: List<ElementToMove>,
-    // todo remove
-    val oldToNewMap: Map<RsElement, RsElement>
-)
-
 // ? todo extract everything related to common to its directory `/common`?
 class RsMoveCommonProcessor(
     private val project: Project,
@@ -152,11 +146,7 @@ class RsMoveCommonProcessor(
         val pathNewAccessible = pathHelper.findPathAfterMove(path, target)
         val pathNewFallback = target.qualifiedNameRelativeTo(path.containingMod)
             ?.toRsPath(codeFragmentFactory, path)
-        // reference from items in old mod to moved item
-        val forceAddImport = !path.hasColonColon
-            && target.containingMod == sourceMod
-            && path.containingMod == sourceMod
-        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target, forceAddImport)
+        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
     }
 
     // this method is needed in order to work with references to `RsItem`s, and not with references to `RsMod`s
@@ -194,14 +184,7 @@ class RsMoveCommonProcessor(
         val pathNewAccessible = reference.pathNewAccessible?.let { convertPathToFull(it) }
         val pathNewFallback = reference.pathNewFallback?.let { convertPathToFull(it) }
 
-        return RsMoveReferenceInfo(
-            pathOld,
-            pathOldOriginal,
-            pathNewAccessible,
-            pathNewFallback,
-            target,
-            reference.forceAddImport
-        )
+        return RsMoveReferenceInfo(pathOld, pathOldOriginal, pathNewAccessible, pathNewFallback, target)
     }
 
     private fun collectOutsideReferences(): List<RsMoveReferenceInfo> {
@@ -258,17 +241,16 @@ class RsMoveCommonProcessor(
         }
 
         if (path.isAbsolute()) {
-            val pathNew = codeFragmentFactory.createPath(path.text, targetMod)
+            val pathNew = path.text.toRsPath(codeFragmentFactory, targetMod)
             if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
         }
 
         // todo ? extract function findOutsideReferencePathNew(..): Pair<RsPath, RsPath>
-        val pathNewFallbackText = target.qualifiedNameInCrate(path)
         val pathNewFallback = if (path.containingMod == sourceMod) {
             // after move `path` will belong to `targetMod`
-            pathNewFallbackText?.toRsPath(codeFragmentFactory, targetMod)
+            target.qualifiedNameRelativeTo(targetMod)?.toRsPath(codeFragmentFactory, targetMod)
         } else {
-            pathNewFallbackText?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
+            target.qualifiedNameInCrate(path)?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
         }
         val pathNewAccessible = if (pathNewFallback.resolvesToAndAccessible(target)) {
             pathNewFallback
@@ -276,11 +258,7 @@ class RsMoveCommonProcessor(
             RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
         }
 
-        val isReferenceFromMovedItemToItemInOldMod = !path.hasColonColon
-            && target.containingMod == sourceMod
-            && path.containingMod == sourceMod
-        val forceAddImport = isReferenceFromMovedItemToItemInOldMod || path.isInsideMetaItem(target)
-        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target, forceAddImport)
+        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
     }
 
     // todo ? extract everything related to preprocess*TraitMethods to separate file
@@ -332,15 +310,14 @@ class RsMoveCommonProcessor(
         }
     }
 
-    fun performRefactoring(usages: Array<out UsageInfo>, moveElements: () -> MoveElementsResult) {
+    fun performRefactoring(usages: Array<out UsageInfo>, moveElements: () -> List<ElementToMove>) {
         // todo what to do with other usages?
         //  наверно нужно передать их в `super.performRefactoring`
         //  но не работает для common
 
         updateOutsideReferencesInVisRestrictions()
 
-        val (elementsToMove, _) = moveElements()
-        this.elementsToMove = elementsToMove
+        this.elementsToMove = moveElements()
 
         updateOutsideReferences()
 
@@ -458,7 +435,7 @@ class RsMoveCommonProcessor(
             .joinToString("::")
 
         addImport(psiFactory, reference.pathOldOriginal, usePath)
-        val pathNewShort = psiFactory.tryCreatePath(pathNewShortText) ?: return false  // todo log error
+        val pathNewShort = pathNewShortText.toRsPath(psiFactory) ?: return false  // todo log error
         replacePathOld(reference, pathNewShort)
         return true
     }

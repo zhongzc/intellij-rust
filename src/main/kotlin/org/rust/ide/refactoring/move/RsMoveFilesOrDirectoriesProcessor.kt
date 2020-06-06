@@ -101,8 +101,7 @@ class RsMoveFilesOrDirectoriesProcessor(
         commonProcessor.performRefactoring(usages) {
             moveFilesAndModuleDeclarations(oldModDeclarations)
             // after move `RsFile`s remain valid
-            val oldToNewMap: Map<RsElement, RsElement> = elementsToMove.associate { it.mod to it.mod }
-            MoveElementsResult(elementsToMove, oldToNewMap)
+            elementsToMove
         }
         moveCallback?.refactoringCompleted()
     }

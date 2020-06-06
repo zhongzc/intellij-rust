@@ -45,7 +45,6 @@ class RsMoveReferenceInfo(
     // == `pathOld.reference.resolve()`
     // todo comment why var
     var target: RsQualifiedNamedElement,
-    val forceAddImport: Boolean = false,
     val forceReplaceDirectly: Boolean = false
 ) {
     val pathNew: RsPath? get() = pathNewAccessible ?: pathNewFallback
@@ -111,21 +110,6 @@ fun RsPath.removeTypeArguments(codeFragmentFactory: RsCodeFragmentFactory): RsPa
 
     val context = context as? RsElement ?: this
     return codeFragmentFactory.createPath(pathCopy.text, context) ?: /* todo log error */ this
-}
-
-// target == `this.reference.resolve()`
-// (but path can be dangling, so we have to pass it as argument)
-fun RsPath.isIdiomatic(target: RsQualifiedNamedElement): Boolean {
-    val targetName = target.name ?: return false
-    return when (target) {
-        is RsMod -> false
-        is RsFunction -> {
-            val segments = text.split("::")
-            segments.size == 2 && segments.last() == targetName
-        }
-        // structs/enums/...
-        else -> text == targetName
-    }
 }
 
 fun RsPath?.resolvesToAndAccessible(target: RsQualifiedNamedElement): Boolean {

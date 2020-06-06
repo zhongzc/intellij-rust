@@ -18,7 +18,6 @@ import com.intellij.usageView.UsageViewDescriptor
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.lang.core.psi.RsModItem
-import org.rust.lang.core.psi.ext.RsElement
 import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.expandedItemsExceptImplsAndUses
@@ -79,11 +78,8 @@ class RsMoveTopLevelItemsProcessor(
         commonProcessor.performRefactoring(usages, this::moveItems)
     }
 
-    private fun moveItems(): MoveElementsResult {
-        val elementsNew = mutableListOf<ElementToMove>()
-        val oldToNewMap = mutableMapOf<RsElement, RsElement>()
-
-        for (item in itemsToMove) {
+    private fun moveItems(): List<ElementToMove> {
+        return itemsToMove.map { item ->
             val space = item.nextSibling as? PsiWhiteSpace
 
             val itemNew = targetMod.addInner(item) as RsItemElement
@@ -93,10 +89,8 @@ class RsMoveTopLevelItemsProcessor(
             space?.delete()
             item.delete()
 
-            elementsNew += ElementToMove.fromItem(itemNew)
-            oldToNewMap[item] = itemNew
+            ElementToMove.fromItem(itemNew)
         }
-        return MoveElementsResult(elementsNew, oldToNewMap)
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>): UsageViewDescriptor =
