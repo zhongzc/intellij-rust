@@ -17,10 +17,7 @@ import org.rust.ide.utils.getElementRange
 import org.rust.ide.utils.getTopmostParentInside
 import org.rust.lang.RsLanguage
 import org.rust.lang.core.psi.*
-import org.rust.lang.core.psi.ext.RsElement
-import org.rust.lang.core.psi.ext.RsItemElement
-import org.rust.lang.core.psi.ext.RsMod
-import org.rust.lang.core.psi.ext.childrenOfType
+import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.TyAdt
 import org.rust.lang.core.types.type
 
@@ -99,6 +96,7 @@ class RsMoveTopLevelItemsHandler : MoveHandlerDelegate() {
 
     companion object {
         fun canMoveElement(element: PsiElement): Boolean {
+            if (element is RsModItem && element.descendantOfTypeStrict<RsModDeclItem>() != null) return false
             return element is RsItemElement
                 && element !is RsModDeclItem
                 && element !is RsUseItem
@@ -117,13 +115,21 @@ fun collectRelatedImplItems(containingMod: RsMod, items: List<RsItemElement>): L
     //
     // For trait `Foo` we should collect:
     // * impl Foo for ... { ... }
+    return groupImplsByStructOrTrait(containingMod, items).values.flatten()
+}
 
+fun groupImplsByStructOrTrait(containingMod: RsMod, items: List<RsItemElement>): Map<RsItemElement, List<RsImplItem>> {
     return containingMod
         .childrenOfType<RsImplItem>()
-        .filter {
-            val trait = it.traitRef?.path?.reference?.resolve()
-            val item = (it.typeReference?.type as? TyAdt)?.item
-            trait != null && items.contains(trait)
-                || item != null && items.contains(item)
+        .mapNotNull {
+            val relatedItem = it.getRelatedStructOrTrait()
+            if (relatedItem != null && items.contains(relatedItem)) relatedItem to it else null
         }
+        .groupBy({ it.first }, { it.second })
+}
+
+private fun RsImplItem.getRelatedStructOrTrait(): RsItemElement? {
+    val struct = (typeReference?.type as? TyAdt)?.item
+    val trait = traitRef?.path?.reference?.resolve() as? RsTraitItem
+    return struct ?: trait
 }
