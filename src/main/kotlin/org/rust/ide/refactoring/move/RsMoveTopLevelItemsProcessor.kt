@@ -20,10 +20,11 @@ import org.rust.lang.core.psi.RsModItem
 import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.expandedItemsExceptImplsAndUses
+import org.rust.lang.core.psi.ext.startOffset
 
 class RsMoveTopLevelItemsProcessor(
     private val project: Project,
-    private val itemsToMove: List<RsItemElement>,
+    private val itemsToMove: Set<RsItemElement>,
     private val targetMod: RsMod,
     private val searchForReferences: Boolean,
     // todo remove, needed only for random move action
@@ -83,19 +84,21 @@ class RsMoveTopLevelItemsProcessor(
     }
 
     private fun moveItems(): List<ElementToMove> {
-        return itemsToMove.map { item ->
-            val space = item.nextSibling as? PsiWhiteSpace
+        return itemsToMove
+            .sortedBy { it.startOffset }
+            .map { item ->
+                val space = item.nextSibling as? PsiWhiteSpace
 
-            // have to call `copy` because of rare suspicious PsiInvalidElementAccessException
-            val itemNew = targetMod.addInner(item.copy()) as RsItemElement
-            if (space != null) targetMod.addInner(space.copy())
-            commonProcessor.updateMovedItemVisibility(itemNew, item)
+                // have to call `copy` because of rare suspicious PsiInvalidElementAccessException
+                val itemNew = targetMod.addInner(item.copy()) as RsItemElement
+                if (space != null) targetMod.addInner(space.copy())
+                commonProcessor.updateMovedItemVisibility(itemNew, item)
 
-            space?.delete()
-            item.delete()
+                space?.delete()
+                item.delete()
 
-            ElementToMove.fromItem(itemNew)
-        }
+                ElementToMove.fromItem(itemNew)
+            }
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>): UsageViewDescriptor =

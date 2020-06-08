@@ -14,8 +14,8 @@ import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.refactoring.BaseRefactoringProcessor
-import com.intellij.refactoring.RefactoringBundle.message
-import com.intellij.refactoring.util.CommonRefactoringUtil.showErrorMessage
+import com.intellij.refactoring.RefactoringBundle
+import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.testFramework.fixtures.CodeInsightFixtureTestCase
 import org.rust.cargo.project.model.cargoProjects
 import org.rust.cargo.project.settings.rustSettings
@@ -53,7 +53,9 @@ val RANDOM: Random = Random.Default
 private fun doAction(index: Int, project: Project, base: VirtualFile, crateRoots: List<RsFile>) {
     checkReadAccessAllowed()
     checkIsSmartMode(project)
-    gitHardReset(project, base)
+    project.runWithCancelableProgress("git reset --hard ...") {
+        gitHardReset(project, base)
+    }
 
     do {
         val (sourceMod, targetMod) = findRandomSourceAndTargetMods(crateRoots)
@@ -115,14 +117,18 @@ private fun getAllMods(crateRoot: RsFile): List<RsMod> {
     return modsSelf + modsInner
 }
 
+fun movedItemDescription(item: RsItemElement): String {
+    return item.name ?: RsMoveMemberInfo(item).description
+}
+
 @ExperimentalStdlibApi
 fun moveRandomItems(project: Project, sourceMod: RsMod, targetMod: RsMod): Boolean {
     checkReadAccessAllowed()
     if (sourceMod == targetMod) return false
     if (sourceMod.isTest() || targetMod.isTest()) return false
-    val itemsToMove = findRandomItemsToMove(sourceMod) ?: return false
-    println("Moving ${(itemsToMove[0] as? RsQualifiedNamedElement)?.qualifiedName ?: itemsToMove[0]} " +
-        "from ${sourceMod.qualifiedName} to ${targetMod.qualifiedName}")
+    val itemsToMove = findRandomItemsToMove(sourceMod)?.toSet() ?: return false
+    println("Moving from ${sourceMod.qualifiedName} to ${targetMod.qualifiedName}: " +
+        itemsToMove.joinToString { movedItemDescription(it) })
     return try {
         RsMoveTopLevelItemsProcessor(project, itemsToMove, targetMod, searchForReferences = true, throwOnConflicts = true).run()
         true
@@ -130,8 +136,9 @@ fun moveRandomItems(project: Project, sourceMod: RsMod, targetMod: RsMod): Boole
         // todo move even if conflicts, and check that `cargo check` report errors after move ?
         false
     } catch (e: Exception) {
+        val title = RefactoringBundle.message("error.title")
         val message = "${e.javaClass.simpleName}: ${e.message}"
-        showErrorMessage(message("error.title"), message, "refactoring.moveFile", project)
+        CommonRefactoringUtil.showErrorMessage(title, message, "refactoring.moveFile", project)
         throw e
     }
 }

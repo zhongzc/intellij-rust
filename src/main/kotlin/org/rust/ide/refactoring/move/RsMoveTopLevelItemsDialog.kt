@@ -22,6 +22,7 @@ import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.openapiext.pathToRsFileTextField
 import org.rust.openapiext.toPsiFile
+import org.rust.stdext.mapToSet
 import java.awt.Dimension
 import java.io.File
 import javax.swing.Icon
@@ -29,7 +30,7 @@ import javax.swing.JComponent
 
 class RsMoveTopLevelItemsDialog(
     project: Project,
-    private val itemsToMove: List<RsItemElement>,
+    private val itemsToMove: Set<RsItemElement>,
     private val sourceMod: RsMod
 ) : RefactoringDialog(project, false) {
 
@@ -65,7 +66,6 @@ class RsMoveTopLevelItemsDialog(
         val nodesWithoutGrouping = topLevelItems.subtract(itemsGroupedWithImpls).map { RsMoveMemberInfo(it) }
         val nodesAll = nodesGroupedWithImpls + nodesWithoutGrouping
 
-        val itemsToMove = itemsToMove.toSet()
         val nodesSelected = nodesAll
             .flatMap {
                 when (it) {
@@ -114,10 +114,10 @@ class RsMoveTopLevelItemsDialog(
         return sourceFilePath != targetFileChooser.text && getSelectedItems().isNotEmpty()
     }
 
-    private fun getSelectedItems(): List<RsItemElement> =
+    private fun getSelectedItems(): Set<RsItemElement> =
         memberPanel.tree.includedSet
             .filterIsInstance<RsMoveMemberInfo>()
-            .map { it.member }
+            .mapToSet { it.member }
 
     override fun doAction() {
         val itemsToMove = getSelectedItems()

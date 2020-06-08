@@ -70,7 +70,8 @@ class RsMoveTopLevelItemsHandler : MoveHandlerDelegate() {
         if (!CommonRefactoringUtil.checkReadOnlyStatusRecursively(project, itemsToMove, true)) return
 
         val relatedImplItems = collectRelatedImplItems(containingMod, itemsToMove)
-        RsMoveTopLevelItemsDialog(project, itemsToMove + relatedImplItems, containingMod).show()
+        val itemsToMoveAll = (itemsToMove + relatedImplItems).toSet()
+        RsMoveTopLevelItemsDialog(project, itemsToMoveAll, containingMod).show()
     }
 
     private fun collectSelectedItems(project: Project, editor: Editor): Pair<List<RsItemElement>, RsMod>? {

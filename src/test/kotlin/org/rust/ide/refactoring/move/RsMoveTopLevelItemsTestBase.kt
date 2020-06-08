@@ -23,6 +23,7 @@ import org.rust.lang.core.psi.ext.childrenOfType
 import org.rust.openapiext.document
 import org.rust.openapiext.toPsiDirectory
 import org.rust.openapiext.toPsiFile
+import org.rust.stdext.mapToSet
 
 abstract class RsMoveTopLevelItemsTestBase : RsTestBase() {
 
@@ -42,7 +43,7 @@ abstract class RsMoveTopLevelItemsTestBase : RsTestBase() {
 
     private fun performMove(testProject: TestProject) {
         val sourceFile = myFixture.findFileInTempDir(testProject.fileWithCaret).toPsiFile(project)!!
-        val itemsToMove = sourceFile.getElementsAtMarker().map { it.parentOfType<RsItemElement>()!! }
+        val itemsToMove = sourceFile.getElementsAtMarker().mapToSet { it.parentOfType<RsItemElement>()!! }
 
         val root = myFixture.findFileInTempDir(".").toPsiDirectory(project)!!
         val targetMod = searchElementInAllFiles(root) { it.getElementAtMarker(TARGET_MARKER) }
