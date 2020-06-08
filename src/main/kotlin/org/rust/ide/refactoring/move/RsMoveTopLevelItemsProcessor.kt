@@ -25,7 +25,9 @@ class RsMoveTopLevelItemsProcessor(
     private val project: Project,
     private val itemsToMove: List<RsItemElement>,
     private val targetMod: RsMod,
-    private val searchForReferences: Boolean
+    private val searchForReferences: Boolean,
+    // todo remove, needed only for random move action
+    private val throwOnConflicts: Boolean = false
 ) : BaseRefactoringProcessor(project) {
 
     private val commonProcessor: RsMoveCommonProcessor = run {

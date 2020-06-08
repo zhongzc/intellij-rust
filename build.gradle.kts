@@ -232,6 +232,8 @@ project(":plugin") {
             jvmArgs("-Xmx2G", "-XX:+UseG1GC", "-XX:SoftRefLRUPolicyMSPerMB=50")
             // uncomment if `unexpected exception ProcessCanceledException` prevents you from debugging a running IDE
             jvmArgs("-Didea.ProcessCanceledException=disabled")
+            jvmArgs("-Dnosplash=true")
+            systemProperty("suppress.focus.stealing", "true")
         }
 
         withType<PatchPluginXmlTask> {

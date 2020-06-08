@@ -5,33 +5,22 @@
 
 package org.rustPerformanceTests
 
-import com.intellij.dvcs.DvcsUtil
-import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.refactoring.BaseRefactoringProcessor.ConflictsInTestsException
-import org.rust.cargo.project.settings.rustSettings
-import org.rust.cargo.project.settings.toolchain
-import org.rust.cargo.toolchain.ExternalLinter
-import org.rust.ide.annotator.RsExternalLinterUtils
-import org.rust.ide.refactoring.move.RsMoveTopLevelItemsHandler
-import org.rust.ide.refactoring.move.RsMoveTopLevelItemsProcessor
-import org.rust.ide.refactoring.move.collectRelatedImplItems
+import org.rust.ide.refactoring.move.getCargoCheckMessages
+import org.rust.ide.refactoring.move.gitHardReset
+import org.rust.ide.refactoring.move.moveRandomItems
 import org.rust.lang.RsFileType
 import org.rust.lang.core.macros.MacroExpansionScope
 import org.rust.lang.core.macros.macroExpansionManager
 import org.rust.lang.core.psi.RsFile
-import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.RsModItem
-import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.descendantsOfType
 import org.rust.openapiext.pathAsPath
-import org.rust.openapiext.saveAllDocuments
 import org.rust.openapiext.toPsiFile
-import org.rust.openapiext.withWorkDirectory
 
 @ExperimentalStdlibApi
 class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
@@ -54,78 +43,43 @@ class RsMoveTopLevelItemsStressTest : RsRealProjectTestBase() {
         println(base.pathAsPath)
 
         println("Collecting mods")
-        val allMods = base
-            .findDescendants { it.fileType == RsFileType }
-            .map { it.toPsiFile(project) }
-            .filterIsInstance<RsFile>()
-            .filter { it.crateRoot != null && it.cargoWorkspace != null }
-            .flatMap { (it.descendantsOfType<RsModItem>() + it) as List<RsMod> }
-        check(allMods.size > 1)
+        val allMods = findAllMods(project, base)
 
         repeat(repeats) { i ->
             println("Moving random item ($i)")
-            ensureCargoCheckSuccess(base)
+            getCargoCheckMessages(project, base)
             do {
-                val moved = moveRandomItem(allMods)
+                val moved = moveRandomItems(allMods)
             } while (!moved)
             PsiDocumentManager.getInstance(project).commitAllDocuments()
 
             println("Running cargo check")
-            ensureCargoCheckSuccess(base)
-            gitHardReset(base)
+            getCargoCheckMessages(project, base)
+            gitHardReset(project, base)
         }
 
         println("Done")
     }
 
-    private fun moveRandomItem(allMods: List<RsMod>, moveToSameCrate: Boolean = true): Boolean {
+    private fun moveRandomItems(allMods: List<RsMod>, moveToSameCrate: Boolean = true): Boolean {
         val sourceMod = allMods.random()
         val targetMod = allMods.random()
         if (sourceMod === targetMod || moveToSameCrate && sourceMod.crateRoot != targetMod.crateRoot) return false
-
-        // todo random subset
-        val itemToMove = sourceMod.children
-            .filterIsInstance<RsItemElement>()
-            .filter { RsMoveTopLevelItemsHandler.canMoveElement(it) }
-            .randomOrNull()
-            ?: return false
-        if (itemToMove.containingMod.isCrateRoot && itemToMove is RsFunction && itemToMove.name == "main") return false
-        val itemsToMove = collectRelatedImplItems(sourceMod, listOf(itemToMove)) + itemToMove
-        return try {
-            RsMoveTopLevelItemsProcessor(project, itemsToMove, targetMod, true).run()
-            true
-        } catch (e: ConflictsInTestsException) {
-            // todo move even if conflicts, and check that `cargo check` report errors after move ?
-            false
-        }
+        return moveRandomItems(project, sourceMod, targetMod)
     }
 
-    private fun ensureCargoCheckSuccess(base: VirtualFile) {
-        assertEquals(ExternalLinter.CARGO_CHECK, project.rustSettings.externalLinter)
-        val checkResult = RsExternalLinterUtils.checkWrapped(
-            project.toolchain!!,
-            project,
-            testRootDisposable,
-            base.pathAsPath,
-            null
-        )!!
-        val errorMessages = checkResult.messages
-            .filter { it.message.level == "error" }
-        assertEmpty(errorMessages)
+    fun ensureCargoCheckSuccess(base: VirtualFile) {
+        val messages = getCargoCheckMessages(project, base)
+        assertEmpty(messages)
     }
+}
 
-    private fun gitHardReset(base: VirtualFile) {
-        saveAllDocuments()
-
-        DvcsUtil.workingTreeChangeStarted(project, null).use {
-            println("Restoring repository state")
-            val path = base.pathAsPath
-            check(!path.toString().contains("intellij-rust"))
-            GeneralCommandLine("git", "reset", "--hard")
-                .withWorkDirectory(path)
-                .createProcess()
-                .waitFor()
-            VfsUtil.markDirtyAndRefresh(false, true, false, base)
-        }
-    }
+fun findAllMods(project: Project, base: VirtualFile): List<RsMod> {
+    return base
+        .findDescendants { it.fileType == RsFileType }
+        .map { it.toPsiFile(project) }
+        .filterIsInstance<RsFile>()
+        .filter { it.crateRoot != null && it.cargoWorkspace != null }
+        .flatMap { (it.descendantsOfType<RsModItem>() + it) as List<RsMod> }
+        .also { check(it.size > 1) }
 }

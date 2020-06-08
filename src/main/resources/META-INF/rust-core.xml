@@ -1143,6 +1143,11 @@
             <add-to-group group-id="Internal"/>
         </action>
 
+        <action id="RsMoveRandomItems" class="org.rust.ide.refactoring.move.RsMoveRandomItemsAction"
+                text="Move Random Items" internal="true">
+            <add-to-group group-id="ToolbarRunGroup" anchor="first" />
+        </action>
+
     </actions>
 
 </idea-plugin>
