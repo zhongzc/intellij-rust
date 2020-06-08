@@ -69,6 +69,13 @@ class RsMoveTopLevelItemsProcessor(
         return commonProcessor.preprocessUsages(usages, conflicts) && showConflicts(conflicts, usages)
     }
 
+    override fun showConflicts(conflicts: MultiMap<PsiElement, String>, usages: Array<out UsageInfo>?): Boolean {
+        if (throwOnConflicts && !conflicts.isEmpty) {
+            throw ConflictsInTestsException(conflicts.values())
+        }
+        return super.showConflicts(conflicts, usages)
+    }
+
     override fun performRefactoring(usages: Array<out UsageInfo>) {
         commonProcessor.performRefactoring(usages, this::moveItems)
     }

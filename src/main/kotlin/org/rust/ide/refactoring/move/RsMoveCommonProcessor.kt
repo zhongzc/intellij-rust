@@ -6,9 +6,11 @@
 package org.rust.ide.refactoring.move
 
 import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
+import com.intellij.openapiext.isUnitTestMode
 import com.intellij.psi.PsiElement
 import com.intellij.psi.impl.source.DummyHolder
 import com.intellij.psi.util.parentOfType
@@ -22,6 +24,7 @@ import org.rust.ide.inspections.import.insertUseItem
 import org.rust.ide.refactoring.RsImportOptimizer
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
+import org.rust.openapiext.computeWithCancelableProgress
 
 sealed class ElementToMove {
     companion object {
@@ -89,8 +92,12 @@ class RsMoveCommonProcessor(
     fun preprocessUsages(usages: Array<UsageInfo>, conflicts: MultiMap<PsiElement, String>): Boolean {
         // todo maybe add usages which needs adding element to list
         //  then insert new element without progress at all, and again search for usages
-        return ProgressManager.getInstance().runProcessWithProgressSynchronously(
-            {
+
+        val title = message("refactoring.preprocess.usages.progress")
+        try {
+            // we need to use `computeWithCancelableProgress` and not `runWithCancelableProgress`
+            // because otherwise any exceptions will be silently ignored
+            project.computeWithCancelableProgress(title) {
                 runReadAction {
                     // todo three threads:
                     // - collectOutsideReferences + conflicts
@@ -101,17 +108,19 @@ class RsMoveCommonProcessor(
                     preprocessOutsideReferencesToTraitMethods(conflicts)
                     preprocessInsideReferencesToTraitMethods(conflicts)
 
-                    ProgressManager.getInstance().progressIndicator.text = message("detecting.possible.conflicts")
+                    if (!isUnitTestMode) {
+                        ProgressManager.getInstance().progressIndicator.text = message("detecting.possible.conflicts")
+                    }
                     conflictsDetector = RsMoveConflictsDetector(conflicts, elementsToMove, sourceMod, targetMod)
                     conflictsDetector.detectOutsideReferencesVisibilityProblems(outsideReferences)
                     conflictsDetector.detectInsideReferencesVisibilityProblems(insideReferences)
                     conflictsDetector.checkImpls()
                 }
-            },
-            message("refactoring.preprocess.usages.progress"),
-            true,
-            project
-        )
+            }
+            return true
+        } catch (e: ProcessCanceledException) {
+            return false
+        }
     }
 
     private fun preprocessInsideReferences(usages: Array<UsageInfo>): List<RsMoveReferenceInfo> {
@@ -259,11 +268,7 @@ class RsMoveCommonProcessor(
         } else {
             target.qualifiedNameInCrate(path)?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
         }
-        val pathNewAccessible = if (pathNewFallback.resolvesToAndAccessible(target)) {
-            pathNewFallback
-        } else {
-            RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
-        }
+        val pathNewAccessible = RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
 
         return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
     }

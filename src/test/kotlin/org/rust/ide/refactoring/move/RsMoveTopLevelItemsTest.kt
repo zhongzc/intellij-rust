@@ -1120,6 +1120,26 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    @ProjectDescriptor(WithStdlibRustProjectDescriptor::class)
+    fun `test outside reference to Arc from stdlib`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use std::sync::Arc;
+            fn foo/*caret*/(_: Arc<i32>) {}
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            use std::sync::Arc;
+        }
+        mod mod2 {
+            use std::sync::Arc;
+
+            fn foo(_: Arc<i32>) {}
+        }
+    """)
+
     fun `test outside references to generic struct`() = doTest("""
     //- main.rs
         mod mod1 {
