@@ -528,15 +528,26 @@ class RsMoveCommonProcessor(
     // todo improve for complex use groups, e.g.:
     //  `use mod1::{foo1, foo2::{inner1, inner2}}` (currently we create two imports)
     private fun tryReplacePathOldInUseGroup(pathOld: RsPath, pathNew: RsPath): Boolean {
+        val containingMod = pathOld.containingMod
         val useSpeck = pathOld.parentOfType<RsUseSpeck>() ?: return false
         val useGroup = useSpeck.parent as? RsUseGroup ?: return false
 
+        // Before:
+        //   `use prefix::{mod1::foo::inner::{inner1, inner2}, other1, other2};`
+        //                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^ useGroup
+        //                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^ useSpeck
+        //                 ^~~~~~~~^ pathOld
+        // After:
+        //   `use prefix::{other1, other2};`
+        //   `use prefix::mod1::foo::inner::{inner1, inner2};`
         pathOld.replace(pathNew)
-        if (useSpeck.text.contains("::")) {
-            useSpeck.containingMod.insertUseItem(psiFactory, useSpeck.text)
+        val useSpeckText = useSpeck.text
+        // deletion should be before `insertUseItem`, otherwise `useSpeck` may be invalidated
+        deleteUseSpeckInUseGroup(useSpeck)
+        if (useSpeckText.contains("::")) {
+            containingMod.insertUseItem(psiFactory, useSpeckText)
         }
 
-        deleteUseSpeckInUseGroup(useSpeck)
         // todo group paths by RsUseItem and handle together ?
         // consider pathOld == `foo1` in `use mod1::{foo1, foo2};`
         // we just removed `foo1` from old use group and added new import: `use mod1::{foo2}; use mod2::foo1;`

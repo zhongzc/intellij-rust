@@ -86,8 +86,9 @@ class RsMoveTopLevelItemsProcessor(
         return itemsToMove.map { item ->
             val space = item.nextSibling as? PsiWhiteSpace
 
-            val itemNew = targetMod.addInner(item) as RsItemElement
-            if (space != null) targetMod.addInner(space)
+            // have to call `copy` because of rare suspicious PsiInvalidElementAccessException
+            val itemNew = targetMod.addInner(item.copy()) as RsItemElement
+            if (space != null) targetMod.addInner(space.copy())
             commonProcessor.updateMovedItemVisibility(itemNew, item)
 
             space?.delete()
