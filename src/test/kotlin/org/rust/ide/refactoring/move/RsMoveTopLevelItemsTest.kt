@@ -104,6 +104,167 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         mod mod2/*target*/ {}
     """)
 
+    fun `test inside reference to public field`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { pub field: i32 }
+            fn bar(foo: &Foo) { let _ = &foo.field; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private field in constructor`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { field: i32 }
+            fn bar() { let _ = Foo { field: 0 }; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public field in constructor`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { pub field: i32 }
+            fn bar() { let _ = Foo { field: 0 }; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private field in destructuring`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { field: i32 }
+            fn bar(foo: &Foo) { let Foo { field } = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public field in destructuring`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { pub field: i32 }
+            fn bar(foo: &Foo) { let Foo { field } = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private field in destructuring using type alias`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { field: i32 }
+            type Bar = Foo;
+            fn bar(foo: &Bar) { let Bar { field } = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public field in destructuring using type alias`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/ { pub field: i32 }
+            type Bar = Foo;
+            fn bar(foo: &Bar) { let Bar { field } = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private field of tuple struct in destructuring 1`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/(i32);
+            fn bar(foo: &Foo) { let Foo(field) = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private field of tuple struct in destructuring 2`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/(pub i32, i32);
+            fn bar(foo: &Foo) { let Foo(field, ..) = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public field of tuple struct in destructuring`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo/*caret*/(pub i32);
+            fn bar(foo: &Foo) { let Foo(field) = foo; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private method`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+            impl Foo/*caret*/ {
+                fn func(&self) {}
+            }
+            fn bar(foo: &Foo) { foo.func(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public method`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+            impl Foo/*caret*/ {
+                pub fn func(&self) {}
+            }
+            fn bar(foo: &Foo) { foo.func(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to private method UFCS`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+            impl Foo/*caret*/ {
+                fn func() {}
+            }
+            fn bar() { Foo::func(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to public method UFCS`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub struct Foo {}
+            impl Foo/*caret*/ {
+                pub fn func() {}
+            }
+            fn bar() { Foo::func(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to enum variant`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub enum Foo/*caret*/ { Foo1, Foo2 }
+            fn bar() { let _ = Foo::Foo1; }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test inside reference to trait method`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            pub trait Foo/*caret*/ {
+                fn foo(&self) {}
+            }
+            impl Foo for ()/*caret*/ {}
+            fn bar() { ().foo(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
     // todo add `pub` to fields too ?
     fun `test add pub to moved items if necessary`() = doTest("""
     //- main.rs

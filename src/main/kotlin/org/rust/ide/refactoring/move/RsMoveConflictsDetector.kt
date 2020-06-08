@@ -5,11 +5,14 @@
 
 package org.rust.ide.refactoring.move
 
+import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.parentsWithSelf
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.refactoring.util.RefactoringUIUtil
 import com.intellij.util.containers.MultiMap
+import org.rust.ide.utils.getTopmostParentInside
+import org.rust.lang.core.macros.setContext
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.resolve.knownItems
@@ -58,26 +61,33 @@ class RsMoveConflictsDetector(
     // because for checking all references we should find them,
     // and it would very slow when moving e.g. many files
     private fun detectPrivateFieldOrMethodInsideReferences() {
-        val movedElementsShallowDescendants = movedElementsShallowDescendantsOfType<RsElement>(elementsToMove).toSet()
+        val movedElementsShallowDescendants = movedElementsShallowDescendantsOfType<RsElement>(elementsToMove)
         val sourceFile = sourceMod.containingFile
         val elementsToCheck = sourceFile.descendantsOfType<RsElement>() - movedElementsShallowDescendants
+        detectPrivateFieldOrMethodReferences(elementsToCheck.asSequence(), this::checkVisibilityForInsideReference)
+    }
 
-        // todo ? copy element to tmp mod (children of targetMod) and just call `isVisible`?
-        fun checkVisibility(referenceElement: RsElement, target: RsVisible) {
-            // it is enough to check only shallow descendants,
-            // because if something in deep descendants is private,
-            // then it was not accessible before move
-            if (target !in movedElementsShallowDescendants) return
-            // Enum variants in a pub enum are public by default
-            val isEnumVariant = target is RsNamedFieldDecl && target.parent.parent is RsEnumVariant
-            // Associated items in a pub Trait are public by default
-            val isTraitMethodOrAssociatedItem = target.parent is RsMembers
-            // todo restricted visibility
-            if (target.visibility == RsVisibility.Private && !isEnumVariant && !isTraitMethodOrAssociatedItem) {
-                addVisibilityConflict(conflicts, referenceElement, target)
-            }
+    // we create temp child mod of `targetMod` and copy `target` to this temp mod
+    private fun checkVisibilityForInsideReference(referenceElement: RsElement, target: RsVisible) {
+        if (target.visibility == RsVisibility.Public) return
+        val item = target.getTopmostParentInside(target.containingMod)
+        // it is enough to check only references to descendants of moved items (not mods),
+        // because if something in inner mod is private, then it was not accessible before move
+        if (elementsToMove.none { (it as? ItemToMove)?.item == item }) return
+
+        val tempMod = RsPsiFactory(sourceMod.project).createModItem("__tmp__", "")
+        tempMod.setContext(targetMod)
+
+        target.putCopyableUserData(RS_ELEMENT_FOR_CHECK_INSIDE_REFERENCES_VISIBILITY, target)
+        val itemInTempMod = tempMod.addInner(item)
+        val targetInTempMod = itemInTempMod.descendantsOfType<RsVisible>()
+            .singleOrNull { it.getCopyableUserData(RS_ELEMENT_FOR_CHECK_INSIDE_REFERENCES_VISIBILITY) == target }
+            ?: return
+
+        if (!targetInTempMod.isVisibleFrom(referenceElement.containingMod)) {
+            addVisibilityConflict(conflicts, referenceElement, target)
         }
-        detectPrivateFieldOrMethodReferences(elementsToCheck.asSequence(), ::checkVisibility)
+        target.putCopyableUserData(RS_ELEMENT_FOR_CHECK_INSIDE_REFERENCES_VISIBILITY, null)
     }
 
     private fun detectPrivateFieldOrMethodOutsideReferences() {
@@ -186,8 +196,7 @@ class RsMoveConflictsDetector(
             if (ty is TyAdt) ty.item.isLocalAfterMove() else false
         }
         if (!anyTypeParameterIsLocal) {
-            val message = "<a href=\"https://ya.ru\">Orphan rules</a> check failed for trait implementation after move"
-            conflicts.putValue(impl, message)
+            conflicts.putValue(impl, "Orphan rules check failed for trait implementation after move")
         }
     }
 
@@ -224,6 +233,11 @@ class RsMoveConflictsDetector(
                 }
             }
         }
+    }
+
+    companion object {
+        val RS_ELEMENT_FOR_CHECK_INSIDE_REFERENCES_VISIBILITY: Key<RsElement> =
+            Key("RS_ELEMENT_FOR_CHECK_INSIDE_REFERENCES_VISIBILITY")
     }
 }
 

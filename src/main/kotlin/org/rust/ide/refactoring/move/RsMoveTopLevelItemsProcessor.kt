@@ -108,5 +108,5 @@ class RsMoveTopLevelItemsProcessor(
 }
 
 // like PsiElement::add, but works correctly for RsModItem
-private fun RsMod.addInner(element: PsiElement): PsiElement =
+fun RsMod.addInner(element: PsiElement): PsiElement =
     addBefore(element, if (this is RsModItem) rbrace else null)
