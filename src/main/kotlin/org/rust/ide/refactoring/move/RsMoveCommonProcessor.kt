@@ -83,9 +83,11 @@ class RsMoveCommonProcessor(
                 when {
                     element is RsModDeclItem -> RsModDeclUsage(element, target as RsFile)
                     element is RsPath && target is RsQualifiedNamedElement -> RsPathUsage(element, reference, target)
-                    else -> usage
+                    else -> null
                 }
             }
+            // sorting is needed for stable results in tests
+            .sortedWith(compareBy({ it.element.containingMod.crateRelativePath }, { it.element.startOffset }))
             .toTypedArray()
     }
 
@@ -528,9 +530,9 @@ class RsMoveCommonProcessor(
     // todo improve for complex use groups, e.g.:
     //  `use mod1::{foo1, foo2::{inner1, inner2}}` (currently we create two imports)
     private fun tryReplacePathOldInUseGroup(pathOld: RsPath, pathNew: RsPath): Boolean {
-        val containingMod = pathOld.containingMod
         val useSpeck = pathOld.parentOfType<RsUseSpeck>() ?: return false
         val useGroup = useSpeck.parent as? RsUseGroup ?: return false
+        val useItem = useGroup.parentOfType<RsUseItem>() ?: return false
 
         // Before:
         //   `use prefix::{mod1::foo::inner::{inner1, inner2}, other1, other2};`
@@ -545,7 +547,7 @@ class RsMoveCommonProcessor(
         // deletion should be before `insertUseItem`, otherwise `useSpeck` may be invalidated
         deleteUseSpeckInUseGroup(useSpeck)
         if (useSpeckText.contains("::")) {
-            containingMod.insertUseItem(psiFactory, useSpeckText)
+            insertUseItemAndCopyAttributes(useSpeckText, useItem)
         }
 
         // todo group paths by RsUseItem and handle together ?
@@ -555,6 +557,19 @@ class RsMoveCommonProcessor(
         // because otherwise `use mod1::{foo2};` becomes `use mod1::foo2;` which destroys`foo2` reference
         useSpecksToOptimize += useGroup.parentUseSpeck
         return true
+    }
+
+    private fun insertUseItemAndCopyAttributes(useSpeckText: String, existingUseItem: RsUseItem) {
+        val containingMod = existingUseItem.containingMod
+        if (existingUseItem.outerAttrList.isEmpty() && existingUseItem.vis == null) {
+            containingMod.insertUseItem(psiFactory, useSpeckText)
+        } else {
+            val useItem = existingUseItem.copy() as RsUseItem
+            val useSpeck = psiFactory.createUseSpeck(useSpeckText)
+            useItem.useSpeck!!.replace(useSpeck)
+            containingMod.addAfter(useItem, existingUseItem)
+        }
+        filesToOptimizeImports.add(containingMod.containingFile as RsFile)
     }
 
     fun addImport(context: RsElement, usePath: String) {

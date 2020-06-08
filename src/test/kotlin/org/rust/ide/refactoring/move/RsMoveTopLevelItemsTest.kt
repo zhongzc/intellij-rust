@@ -1866,6 +1866,39 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    // todo grouping use items with same attributes and visibility
+    fun `test inside references from use group with attributes and visibility`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            pub fn foo1/*caret*/() {}
+            pub fn foo2/*caret*/() {}
+            pub fn bar() {}
+        }
+        mod mod2/*target*/ {}
+        mod usage {
+            #[attr]
+            pub use crate::mod1::{foo1, foo2, bar};
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            pub fn bar() {}
+        }
+        mod mod2 {
+            pub fn foo1() {}
+
+            pub fn foo2() {}
+        }
+        mod usage {
+            #[attr]
+            pub use crate::mod1::bar;
+            #[attr]
+            pub use crate::mod2::foo1;
+            #[attr]
+            pub use crate::mod2::foo2;
+        }
+    """)
+
     fun `test move to other crate simple`() = doTest("""
     //- main.rs
         mod mod1 {
