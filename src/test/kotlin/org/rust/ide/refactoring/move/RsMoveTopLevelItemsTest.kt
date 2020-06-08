@@ -1210,7 +1210,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test outside reference inside macro`() = doTest("""
+    fun `test outside reference inside println macro`() = doTest("""
     //- main.rs
         mod mod1 {
             fn foo/*caret*/() {

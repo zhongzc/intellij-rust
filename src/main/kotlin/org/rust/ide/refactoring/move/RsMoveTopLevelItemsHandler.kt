@@ -121,15 +121,12 @@ fun collectRelatedImplItems(containingMod: RsMod, items: List<RsItemElement>): L
 fun groupImplsByStructOrTrait(containingMod: RsMod, items: List<RsItemElement>): Map<RsItemElement, List<RsImplItem>> {
     return containingMod
         .childrenOfType<RsImplItem>()
-        .mapNotNull {
-            val relatedItem = it.getRelatedStructOrTrait()
-            if (relatedItem != null && items.contains(relatedItem)) relatedItem to it else null
+        .mapNotNull { impl ->
+            val struct = (impl.typeReference?.type as? TyAdt)?.item
+            val trait = impl.traitRef?.path?.reference?.resolve() as? RsTraitItem
+            val relatedItem = struct?.takeIf { items.contains(it) } as RsItemElement?
+                ?: trait?.takeIf { items.contains(it) }
+            if (relatedItem != null) relatedItem to impl else null
         }
         .groupBy({ it.first }, { it.second })
-}
-
-private fun RsImplItem.getRelatedStructOrTrait(): RsItemElement? {
-    val struct = (typeReference?.type as? TyAdt)?.item
-    val trait = traitRef?.path?.reference?.resolve() as? RsTraitItem
-    return struct ?: trait
 }

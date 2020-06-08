@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.ui.*
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.SeparatorFactory
+import com.intellij.util.ui.tree.TreeUtil
 import java.awt.BorderLayout
 import javax.swing.Icon
 import javax.swing.JPanel
@@ -47,12 +48,13 @@ class RsMoveMemberSelectionTree(
     project,
     true,
     false,
-    RsMoveNodeInfo::class.java,
-    nodesSelected
+    RsMoveNodeInfo::class.java
 ) {
 
     init {
+        setIncludedChanges(nodesSelected)
         setChangesToDisplay(nodesAll)
+        TreeUtil.collapseAll(this, 0)
     }
 
     override fun buildTreeModel(nodeInfos: List<RsMoveNodeInfo>): DefaultTreeModel {
