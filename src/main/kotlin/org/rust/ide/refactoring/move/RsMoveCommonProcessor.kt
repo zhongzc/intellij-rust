@@ -452,6 +452,14 @@ class RsMoveCommonProcessor(
         if (pathOldSegments.size >= pathNewSegments.size && !pathOld.startsWithSuper()) return false
 
         val pathNewShortNumberSegments = adjustPathNewNumberSegments(reference, pathOldSegments.size)
+        return doRetargetReferenceKeepExistingStyle(reference, pathNewSegments, pathNewShortNumberSegments)
+    }
+
+    private fun doRetargetReferenceKeepExistingStyle(
+        reference: RsMoveReferenceInfo,
+        pathNewSegments: List<String>,
+        pathNewShortNumberSegments: Int
+    ): Boolean {
         val pathNewShortText = pathNewSegments
             .takeLast(pathNewShortNumberSegments)
             .joinToString("::")
@@ -459,8 +467,20 @@ class RsMoveCommonProcessor(
             .take(pathNewSegments.size - pathNewShortNumberSegments + 1)
             .joinToString("::")
 
+        val containingMod = reference.pathOldOriginal.containingMod
+        val pathNewShort = pathNewShortText.toRsPath(codeFragmentFactory, containingMod)
+            ?: return false  // todo log error
+        val containingModHasSameNameInScope = pathNewShortNumberSegments == 1
+            && pathNewShort.reference?.resolve().let { it != null && it != reference.target }
+        if (containingModHasSameNameInScope) {
+            return doRetargetReferenceKeepExistingStyle(
+                reference,
+                pathNewSegments,
+                pathNewShortNumberSegments + 1
+            )
+        }
+
         addImport(reference.pathOldOriginal, usePath)
-        val pathNewShort = pathNewShortText.toRsPath(psiFactory) ?: return false  // todo log error
         replacePathOld(reference, pathNewShort)
         return true
     }

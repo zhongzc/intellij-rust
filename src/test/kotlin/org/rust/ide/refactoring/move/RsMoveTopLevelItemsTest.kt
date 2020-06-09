@@ -1499,6 +1499,33 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test outside references, should add import for parent mod when target mod has same name in scope`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                let _ = Bar {};
+            }
+            pub struct Bar {}
+        }
+        mod mod2/*target*/ {
+            struct Bar {}
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            pub struct Bar {}
+        }
+        mod mod2 {
+            use crate::mod1;
+
+            struct Bar {}
+
+            fn foo() {
+                let _ = mod1::Bar {};
+            }
+        }
+    """)
+
     // todo ? рассматривать только `RsPath` которые абсолютные или `this.path.reference().resolve == sourceMod`
     // todo ? для перемещаемых модулей: если был glob import `use mod1::*`, то добавлять `use mod2::*`
     fun `test self references 1`() = doTest("""
@@ -2277,6 +2304,41 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
                 match bar {
                     Bar1 | Bar2 => ()
                 }
+            }
+        }
+    """)
+
+    // https://github.com/intellij-rust/intellij-rust/issues/5540
+    fun `test outside reference to enum variant of reexported enum`() = doTestIgnore("""
+    //- main.rs
+        mod mod1 {
+            use crate::inner1::Bar::Bar1;
+            fn foo/*caret*/() {
+                let _ = Bar1;
+            }
+        }
+        mod mod2/*target*/ {}
+        pub mod inner1 {
+            pub use inner2::Bar;
+            mod inner2 {
+                pub enum Bar { Bar1, Bar2 }
+            }
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::inner1::Bar::Bar1;
+        }
+        mod mod2 {
+            use crate::inner1::Bar::Bar1;
+            fn foo() {
+                let _ = Bar1;
+            }
+        }
+        pub mod inner1 {
+            pub use inner2::Bar;
+            mod inner2 {
+                pub enum Bar { Bar1, Bar2 }
             }
         }
     """)
