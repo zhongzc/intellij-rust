@@ -630,7 +630,7 @@ class RsMoveCommonProcessor(
         useSpeck.delete()
     }
 
-    fun updateMovedItemVisibility(item: RsItemElement, itemToCheckMakePublic: RsElement) {
+    fun updateMovedItemVisibility(item: RsItemElement, itemToCheckMakePublic /* todo remove? */: RsElement) {
         when (item.visibility) {
             is RsVisibility.Private -> {
                 if (conflictsDetector.itemsToMakePublic.contains(itemToCheckMakePublic)) {

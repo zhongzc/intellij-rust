@@ -17,6 +17,7 @@ import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewDescriptor
 import com.intellij.util.containers.MultiMap
 import org.rust.lang.core.psi.RsModItem
+import org.rust.lang.core.psi.RsPsiFactory
 import org.rust.lang.core.psi.ext.RsItemElement
 import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.expandedItemsExceptImplsAndUses
@@ -84,21 +85,29 @@ class RsMoveTopLevelItemsProcessor(
     }
 
     private fun moveItems(): List<ElementToMove> {
+        val psiFactory = RsPsiFactory(project)
         return itemsToMove
             .sortedBy { it.startOffset }
-            .map { item ->
-                val space = item.nextSibling as? PsiWhiteSpace
+            .map { item -> moveItem(item, psiFactory) }
+    }
 
-                // have to call `copy` because of rare suspicious PsiInvalidElementAccessException
-                val itemNew = targetMod.addInner(item.copy()) as RsItemElement
-                if (space != null) targetMod.addInner(space.copy())
-                commonProcessor.updateMovedItemVisibility(itemNew, item)
+    private fun moveItem(item: RsItemElement, psiFactory: RsPsiFactory): ElementToMove {
+        commonProcessor.updateMovedItemVisibility(item, item)
 
-                space?.delete()
-                item.delete()
+        if (targetMod.lastChildInner !is PsiWhiteSpace) {
+            targetMod.addInner(psiFactory.createNewline())
+        }
+        val targetModLastWhiteSpace = targetMod.lastChildInner as? PsiWhiteSpace
 
-                ElementToMove.fromItem(itemNew)
-            }
+        val space = (item.prevSibling as? PsiWhiteSpace) ?: (item.nextSibling as? PsiWhiteSpace)
+        // have to call `copy` because of rare suspicious PsiInvalidElementAccessException
+        val itemNew = targetMod.addBefore(item.copy(), targetModLastWhiteSpace) as RsItemElement
+        targetMod.addBefore(space?.copy() ?: psiFactory.createNewline(), itemNew)
+
+        space?.delete()
+        item.delete()
+
+        return ElementToMove.fromItem(itemNew)
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>): UsageViewDescriptor =
@@ -110,3 +119,5 @@ class RsMoveTopLevelItemsProcessor(
 // like `PsiElement::add`, but works correctly for `RsModItem`
 fun RsMod.addInner(element: PsiElement): PsiElement =
     addBefore(element, if (this is RsModItem) rbrace else null)
+
+val RsMod.lastChildInner: PsiElement? get() = if (this is RsModItem) rbrace?.prevSibling else lastChild

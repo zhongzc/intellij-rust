@@ -681,16 +681,17 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    // spaces after moved items are moved to new file
+    // spaces before moved items are moved to new file
     fun `test spaces 3`() = doTest("""
     //- main.rs
         mod mod1 {
+            const C0: i32 = 0;
+
             const C1/*caret*/: i32 = 0;
-
             const C2: i32 = 0;
+
+
             const C3/*caret*/: i32 = 0;
-
-
             const C4: i32 = 0;
             const C5/*caret*/: i32 = 0;
         }
@@ -700,31 +701,32 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     """, """
     //- main.rs
         mod mod1 {
+            const C0: i32 = 0;
             const C2: i32 = 0;
             const C4: i32 = 0;
         }
         mod mod2 {
             const D1: i32 = 0;
+
             const C1: i32 = 0;
 
+
             const C3: i32 = 0;
-
-
             const C5: i32 = 0;
         }
     """)
 
-    // spaces before moved items are kept in old file
+    // spaces after moved items are kept in old file
     fun `test spaces 4`() = doTest("""
     //- main.rs
         mod mod1 {
             const C0: i32 = 0;
-
             const C1/*caret*/: i32 = 0;
+
             const C2: i32 = 0;
-
-
             const C3/*caret*/: i32 = 0;
+
+
             const C4: i32 = 0;
             const C5/*caret*/: i32 = 0;
         }
@@ -747,6 +749,52 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             const C3: i32 = 0;
             const C5: i32 = 0;
         }
+    """)
+
+    // looks like these two tests always pass,
+    // regardless of actual behaviour in real IDEA
+    fun `test remove double newline at end of target file`() = doTest("""
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1.rs
+        fn foo/*caret*/() {}
+
+        fn mod1_func() {}
+    //- mod2.rs
+        /*target*/fn mod2_func() {}
+    """, """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1.rs
+        fn mod1_func() {}
+    //- mod2.rs
+        fn mod2_func() {}
+
+        fn foo() {}
+    """)
+
+    fun `test remove double newline at end of source file`() = doTest("""
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1.rs
+        fn mod1_func() {}
+
+        fn foo/*caret*/() {}
+    //- mod2.rs
+        /*target*/fn mod2_func() {}
+    """, """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1.rs
+        fn mod1_func() {}
+    //- mod2.rs
+        fn mod2_func() {}
+
+        fn foo() {}
     """)
 
     fun `test move doc comments together with items`() = doTest("""
