@@ -41,9 +41,7 @@ class RsMoveTopLevelItemsHandler : MoveHandlerDelegate() {
         elements: Array<out PsiElement>,
         targetContainer: PsiElement?,
         moveCallback: MoveCallback?
-    ) {
-        doMove(project, elements, null)
-    }
+    ) = doMove(project, elements, null)
 
     override fun tryToMove(
         element: PsiElement,

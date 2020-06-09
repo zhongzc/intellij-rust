@@ -6,10 +6,14 @@
 package org.rust.ide.refactoring.move
 
 import com.intellij.openapi.project.Project
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.psi.util.parentOfType
 import org.rust.ide.inspections.import.RsImportHelper
 import org.rust.lang.core.psi.RsCodeFragmentFactory
 import org.rust.lang.core.psi.RsFile
 import org.rust.lang.core.psi.RsPath
+import org.rust.lang.core.psi.RsUseItem
 import org.rust.lang.core.psi.ext.*
 
 /**
@@ -25,12 +29,22 @@ import org.rust.lang.core.psi.ext.*
  * This can be fixed by adding new item to `mod2` in such cases
  * (Though it is unclear how to use writeAction only for small amount of time and not for all preprocess usages stage)
  */
-class RsMovePathHelper(project: Project, private val mod: RsMod) {
+class RsMovePathHelper(private val project: Project, private val mod: RsMod) {
 
     private val codeFragmentFactory: RsCodeFragmentFactory = RsCodeFragmentFactory(project)
-    private val existingPublicItem: RsQualifiedNamedElement? =
+    private val existingPublicItem: RsQualifiedNamedElement? = findExistingPublicItem()
+
+    private fun findExistingPublicItem(): RsQualifiedNamedElement? =
         mod.childrenOfType<RsQualifiedNamedElement>()
-            .firstOrNull { it is RsVisibilityOwner && it.visibility == RsVisibility.Public && it.name != null }
+            .filter { it is RsVisibilityOwner && it.visibility == RsVisibility.Public && it.name != null }
+            // reference search works faster for not common names
+            .sortedByDescending { it.name?.length }
+            .firstOrNull { item ->
+                // have to filter existing items which are publicly reexported (not glob)
+                // because for our new item we can't use that (not glob) reexport
+                val itemUsages = ReferencesSearch.search(item, GlobalSearchScope.projectScope(project))
+                itemUsages.none { it.element.parentOfType<RsUseItem>()?.vis != null }
+            }
 
     fun findPathAfterMove(context: RsElement, element: RsQualifiedNamedElement): RsPath? {
         val elementName = (element as? RsFile)?.modName ?: element.name ?: return null

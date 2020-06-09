@@ -53,7 +53,8 @@ val RANDOM: Random = Random.Default
 private fun doAction(index: Int, project: Project, base: VirtualFile, crateRoots: List<RsFile>) {
     checkReadAccessAllowed()
     checkIsSmartMode(project)
-    project.runWithCancelableProgress("git reset --hard ...") {
+    saveAllDocuments()
+    project.computeWithCancelableProgress("git reset --hard ...") {
         gitHardReset(project, base)
     }
 
@@ -66,7 +67,7 @@ private fun doAction(index: Int, project: Project, base: VirtualFile, crateRoots
         val success = moveRandomItems(project, sourceMod, targetMod)
     } while (!success)
 
-    project.runWithCancelableProgress("Cargo check...") {
+    project.computeWithCancelableProgress("Cargo check...") {
         if (getCargoCheckMessages(project, base).isNotEmpty()) {
             project.showBalloon("Cargo check failed", NotificationType.WARNING)
             runInEdt {
@@ -76,7 +77,7 @@ private fun doAction(index: Int, project: Project, base: VirtualFile, crateRoots
                     additionalArguments = listOf("--all", "--all-targets")
                 ).run(crateRoots.first().cargoProject!!)
             }
-            return@runWithCancelableProgress
+            return@computeWithCancelableProgress
         }
 
         if (index < REPEATS) {
@@ -176,8 +177,6 @@ fun getCargoCheckMessages(project: Project, base: VirtualFile): List<CargoTopMes
 }
 
 fun gitHardReset(project: Project, base: VirtualFile) {
-    saveAllDocuments()
-
     DvcsUtil.workingTreeChangeStarted(project, null).use {
         println("Restoring repository state")
         val path = base.pathAsPath

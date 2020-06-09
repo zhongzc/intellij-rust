@@ -95,6 +95,16 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test inside reference from other crate, when new mod is private`() = doTestConflictsError("""
+    //- lib.rs
+        pub fn foo/*caret*/() {}
+        mod mod1/*target*/ {}
+    //- main.rs
+        fn main() {
+            test_package::foo();
+        }
+    """)
+
     fun `test inside reference to private field`() = doTestConflictsError("""
     //- main.rs
         mod mod1 {
@@ -173,7 +183,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     //- main.rs
         mod mod1 {
             pub struct Foo/*caret*/(i32);
-            fn bar(foo: &Foo) { let Foo(field) = foo; }
+            fn bar(foo: &Foo) { let Foo(_) = foo; }
         }
         mod mod2/*target*/ {}
     """)
@@ -182,7 +192,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     //- main.rs
         mod mod1 {
             pub struct Foo/*caret*/(pub i32, i32);
-            fn bar(foo: &Foo) { let Foo(field, ..) = foo; }
+            fn bar(foo: &Foo) { let Foo(_, ..) = foo; }
         }
         mod mod2/*target*/ {}
     """)
@@ -191,7 +201,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     //- main.rs
         mod mod1 {
             pub struct Foo/*caret*/(pub i32);
-            fn bar(foo: &Foo) { let Foo(field) = foo; }
+            fn bar(foo: &Foo) { let Foo(_) = foo; }
         }
         mod mod2/*target*/ {}
     """)
@@ -261,6 +271,33 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             }
             impl Foo for ()/*caret*/ {}
             fn bar() { ().foo(); }
+        }
+        mod mod2/*target*/ {}
+    """)
+
+    fun `test self references to private method and fields`() = doTestNoConflicts("""
+    //- main.rs
+        mod mod1 {
+            struct Foo1/*caret*/ { field: i32 }
+            fn bar1/*caret*/() {
+                let foo1 = Foo1 { field: 0 };
+                let _ = foo1.field;
+                let Foo { field } = foo1;
+            }
+            struct Foo2/*caret*/(i32);
+            fn bar2/*caret*/() {
+                let foo2 = Foo2(0);
+                let _ = foo2.field;
+                let Foo2(_) = foo2;
+            }
+            struct Foo3/*caret*/ {}
+            impl Foo3/*caret*/ {
+                fn func(&self) {}
+            }
+            fn bar3/*caret*/(foo: &Foo3) {
+                Foo3::func(foo);
+                foo.func();
+            }
         }
         mod mod2/*target*/ {}
     """)
@@ -1780,7 +1817,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test inside references with fully qualified import`() = doTest("""
+    fun `test inside references, should add fully qualified import`() = doTest("""
     //- main.rs
         mod mod1 {
             pub fn foo1/*caret*/() {}
@@ -1815,7 +1852,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test inside references with import for parent mod`() = doTest("""
+    fun `test inside references, should add import for parent mod`() = doTest("""
     //- main.rs
         mod mod1 {
             pub fn foo1/*caret*/() {}
@@ -1849,7 +1886,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test inside references with import for grandparent mod`() = doTest("""
+    fun `test inside references, should add import for grandparent mod`() = doTest("""
     //- main.rs
         mod inner1 {
             pub mod mod1 {
@@ -1888,6 +1925,56 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             fn test() {
                 inner2::mod2::foo1();
                 let _ = inner2::mod2::Foo2 {};
+            }
+        }
+    """)
+
+    fun `test inside reference when parent of public target mod reexports item from target mod`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {}
+            fn bar() {
+                foo();
+            }
+        }
+        mod inner {
+            pub use mod2::bar;
+            pub mod mod2/*target*/ {
+                pub fn bar() {}
+            }
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::inner::mod2;
+
+            fn bar() {
+                mod2::foo();
+            }
+        }
+        mod inner {
+            pub use mod2::bar;
+
+            pub mod mod2 {
+                pub fn bar() {}
+
+                pub fn foo() {}
+            }
+        }
+    """)
+
+    fun `test inside reference when parent of private target mod reexports item from target mod`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {}
+            fn bar() {
+                foo();
+            }
+        }
+        mod inner {
+            pub use mod2::bar;
+            mod mod2/*target*/ {
+                pub fn bar() {}
             }
         }
     """)

@@ -107,6 +107,6 @@ class RsMoveTopLevelItemsProcessor(
     override fun getCommandName(): String = "Move items"
 }
 
-// like PsiElement::add, but works correctly for RsModItem
+// like `PsiElement::add`, but works correctly for `RsModItem`
 fun RsMod.addInner(element: PsiElement): PsiElement =
     addBefore(element, if (this is RsModItem) rbrace else null)

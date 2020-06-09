@@ -70,6 +70,7 @@ class RsMoveConflictsDetector(
     // we create temp child mod of `targetMod` and copy `target` to this temp mod
     private fun checkVisibilityForInsideReference(referenceElement: RsElement, target: RsVisible) {
         if (target.visibility == RsVisibility.Public) return
+        if (target.containingMod != sourceMod) return  // all moved items belongs to `sourceMod`
         val item = target.getTopmostParentInside(target.containingMod)
         // it is enough to check only references to descendants of moved items (not mods),
         // because if something in inner mod is private, then it was not accessible before move
