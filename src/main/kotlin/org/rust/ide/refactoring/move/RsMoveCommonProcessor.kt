@@ -125,6 +125,76 @@ class RsMoveCommonProcessor(
         }
     }
 
+    private fun collectOutsideReferences(): List<RsMoveReferenceInfo> {
+        // we should collect:
+        // * absolute references (starts with "::", "crate" or some crate name)
+        // * references which starts with "super"
+        // * references from old mod scope:
+        //     - to items in old mod
+        //     - to something which is imported in old mod
+
+        val references = mutableListOf<RsMoveReferenceInfo>()
+        for (path in movedElementsDeepDescendantsOfType<RsPath>(elementsToMove)) {
+            if (path.parent is RsVisRestriction) continue
+            if (path.containingMod != sourceMod  // path inside nested mod of moved element
+                && !path.isAbsolute()
+                && !path.startsWithSuper()
+            ) continue
+            if (!isSimplePath(path)) continue
+            // TODO: support references to macros
+            //  is is complicated: https://doc.rust-lang.org/reference/macros-by-example.html#scoping-exporting-and-importing
+            //  also RsImportHelper currently does not work for macros: https://github.com/intellij-rust/intellij-rust/issues/4073
+            val macroCall = path.parentOfType<RsMacroCall>()
+            if (macroCall != null && macroCall.path.isAncestorOf(path)) continue
+
+            // `use path1::{path2, path3}`
+            //              ~~~~~  ~~~~~ todo don't ignore such paths
+            if (path.parentOfType<RsUseGroup>() != null) continue
+
+            val target = path.reference?.resolve() as? RsQualifiedNamedElement ?: continue
+            // ignore relative references from child modules of moved file
+            // because we handle them as inside references (in `preprocessInsideReferences`)
+            if (target.isInsideMovedElements(elementsToMove)) continue
+
+            val reference = createOutsideReferenceInfo(path, target) ?: continue
+            path.putCopyableUserData(RS_PATH_WRAPPER_KEY, reference)
+            references += reference
+        }
+        return references
+    }
+
+    private fun createOutsideReferenceInfo(
+        pathOriginal: RsPath,
+        target: RsQualifiedNamedElement
+    ): RsMoveReferenceInfo? {
+        val path = pathOriginal.removeTypeArguments(codeFragmentFactory)
+
+        // after move both `path` and its target will belong to `targetMod`
+        // so we can refer to item in `targetMod` just with its name
+        if (path.containingMod == sourceMod && target.containingMod == targetMod) {
+            val pathNew = target.name?.toRsPath(psiFactory)
+            if (pathNew != null) {
+                return RsMoveReferenceInfo(path, pathOriginal, pathNew, pathNew, target, forceReplaceDirectly = true)
+            }
+        }
+
+        if (path.isAbsolute()) {
+            val pathNew = path.text.toRsPath(codeFragmentFactory, targetMod)
+            if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
+        }
+
+        // todo ? extract function findOutsideReferencePathNew(..): Pair<RsPath, RsPath>
+        val pathNewFallback = if (path.containingMod == sourceMod) {
+            // after move `path` will belong to `targetMod`
+            target.qualifiedNameRelativeTo(targetMod)?.toRsPath(codeFragmentFactory, targetMod)
+        } else {
+            target.qualifiedNameInCrate(path)?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
+        }
+        val pathNewAccessible = RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
+
+        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
+    }
+
     private fun preprocessInsideReferences(usages: Array<UsageInfo>): List<RsMoveReferenceInfo> {
         val pathUsages = usages.filterIsInstance<RsPathUsage>()
         for (usage in pathUsages) {
@@ -203,76 +273,6 @@ class RsMoveCommonProcessor(
         val pathNewFallback = reference.pathNewFallback?.let { convertPathToFull(it) }
 
         return RsMoveReferenceInfo(pathOld, pathOldOriginal, pathNewAccessible, pathNewFallback, target)
-    }
-
-    private fun collectOutsideReferences(): List<RsMoveReferenceInfo> {
-        // we should collect:
-        // * absolute references (starts with "::", "crate" or some crate name)
-        // * references which starts with "super"
-        // * references from old mod scope:
-        //     - to items in old mod
-        //     - to something which is imported in old mod
-
-        val references = mutableListOf<RsMoveReferenceInfo>()
-        for (path in movedElementsDeepDescendantsOfType<RsPath>(elementsToMove)) {
-            if (path.parent is RsVisRestriction) continue
-            if (path.containingMod != sourceMod  // path inside nested mod of moved element
-                && !path.isAbsolute()
-                && !path.startsWithSuper()
-            ) continue
-            if (!isSimplePath(path)) continue
-            // TODO: support references to macros
-            //  is is complicated: https://doc.rust-lang.org/reference/macros-by-example.html#scoping-exporting-and-importing
-            //  also RsImportHelper currently does not work for macros: https://github.com/intellij-rust/intellij-rust/issues/4073
-            val macroCall = path.parentOfType<RsMacroCall>()
-            if (macroCall != null && macroCall.path.isAncestorOf(path)) continue
-
-            // `use path1::{path2, path3}`
-            //              ~~~~~  ~~~~~ todo don't ignore such paths
-            if (path.parentOfType<RsUseGroup>() != null) continue
-
-            val target = path.reference?.resolve() as? RsQualifiedNamedElement ?: continue
-            // ignore relative references from child modules of moved file
-            // because we handle them as inside references (in `preprocessInsideReferences`)
-            if (target.isInsideMovedElements(elementsToMove)) continue
-
-            val reference = createOutsideReferenceInfo(path, target) ?: continue
-            path.putCopyableUserData(RS_PATH_WRAPPER_KEY, reference)
-            references += reference
-        }
-        return references
-    }
-
-    private fun createOutsideReferenceInfo(
-        pathOriginal: RsPath,
-        target: RsQualifiedNamedElement
-    ): RsMoveReferenceInfo? {
-        val path = pathOriginal.removeTypeArguments(codeFragmentFactory)
-
-        // after move both `path` and its target will belong to `targetMod`
-        // so we can refer to item in `targetMod` just with its name
-        if (path.containingMod == sourceMod && target.containingMod == targetMod) {
-            val pathNew = target.name?.toRsPath(psiFactory)
-            if (pathNew != null) {
-                return RsMoveReferenceInfo(path, pathOriginal, pathNew, pathNew, target, forceReplaceDirectly = true)
-            }
-        }
-
-        if (path.isAbsolute()) {
-            val pathNew = path.text.toRsPath(codeFragmentFactory, targetMod)
-            if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
-        }
-
-        // todo ? extract function findOutsideReferencePathNew(..): Pair<RsPath, RsPath>
-        val pathNewFallback = if (path.containingMod == sourceMod) {
-            // after move `path` will belong to `targetMod`
-            target.qualifiedNameRelativeTo(targetMod)?.toRsPath(codeFragmentFactory, targetMod)
-        } else {
-            target.qualifiedNameInCrate(path)?.toRsPathInEmptyTmpMod(codeFragmentFactory, targetMod)
-        }
-        val pathNewAccessible = RsImportHelper.findPath(targetMod, target)?.toRsPath(psiFactory)
-
-        return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
     }
 
     // todo ? extract everything related to preprocess*TraitMethods to separate file
