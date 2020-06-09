@@ -160,14 +160,21 @@ class RsMoveCommonProcessor(
             path.putCopyableUserData(RS_PATH_WRAPPER_KEY, reference)
             references += reference
         }
+        for (path in movedElementsShallowDescendantsOfType<RsPatIdent>(elementsToMove)) {
+            val target = path.patBinding.reference.resolve() as? RsQualifiedNamedElement ?: continue
+            if (target !is RsStructItem && target !is RsEnumVariant && target !is RsConstant) continue
+            val reference = createOutsideReferenceInfo(path, target) ?: continue
+            path.putCopyableUserData(RS_PATH_WRAPPER_KEY, reference)
+            references += reference
+        }
         return references
     }
 
     private fun createOutsideReferenceInfo(
-        pathOriginal: RsPath,
+        pathOriginal: RsElement,
         target: RsQualifiedNamedElement
     ): RsMoveReferenceInfo? {
-        val path = pathOriginal.removeTypeArguments(codeFragmentFactory)
+        val path = convertFromPathOriginal(pathOriginal, codeFragmentFactory)
 
         // after move both `path` and its target will belong to `targetMod`
         // so we can refer to item in `targetMod` just with its name
@@ -218,7 +225,7 @@ class RsMoveCommonProcessor(
     }
 
     private fun createInsideReferenceInfo(pathOriginal: RsPath, target: RsQualifiedNamedElement): RsMoveReferenceInfo {
-        val path = pathOriginal.removeTypeArguments(codeFragmentFactory)
+        val path = convertFromPathOriginal(pathOriginal, codeFragmentFactory)
 
         val isSelfReference = pathOriginal.isInsideMovedElements(elementsToMove)
         if (isSelfReference) {
@@ -256,7 +263,7 @@ class RsMoveCommonProcessor(
             .map { it as RsPath }
             .firstOrNull { isSimplePath(it) }
             ?: return null
-        val pathOld = pathOldOriginal.removeTypeArguments(codeFragmentFactory)
+        val pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
         if (!pathOld.text.startsWith(reference.pathOld.text)) return null  // todo log error
 
         check(pathOld.containingFile !is DummyHolder)
@@ -371,7 +378,7 @@ class RsMoveCommonProcessor(
     }
 
     private fun updateOutsideReferences() {
-        val outsideReferences = movedElementsDeepDescendantsOfType<RsPath>(elementsToMove)
+        val outsideReferences = movedElementsDeepDescendantsOfType<RsElement>(elementsToMove)
             .mapNotNull { pathOldOriginal ->
                 val reference = pathOldOriginal.getCopyableUserData(RS_PATH_WRAPPER_KEY) ?: return@mapNotNull null
                 pathOldOriginal.putCopyableUserData(RS_PATH_WRAPPER_KEY, null)
@@ -379,7 +386,7 @@ class RsMoveCommonProcessor(
                 // todo make ReferenceInfo data class and use copy ?
                 //  or maybe not, зачем лишний раз аллоцировать
                 reference.pathOldOriginal = pathOldOriginal
-                reference.pathOld = pathOldOriginal.removeTypeArguments(codeFragmentFactory)
+                reference.pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
                 reference
             }
         retargetReferences(outsideReferences.toList())
@@ -397,12 +404,12 @@ class RsMoveCommonProcessor(
                 .toMap()
         }
 
-        val pathMapping = createMapping(RS_PATH_BEFORE_MOVE_KEY, RsPath::class.java)
+        val pathMapping = createMapping(RS_PATH_BEFORE_MOVE_KEY, RsElement::class.java)
         val targetMapping = createMapping(RS_TARGET_BEFORE_MOVE_KEY, RsQualifiedNamedElement::class.java)
         for (reference in references) {
             pathMapping[reference.pathOldOriginal]?.let { pathOldOriginal ->
                 reference.pathOldOriginal = pathOldOriginal
-                reference.pathOld = pathOldOriginal.removeTypeArguments(codeFragmentFactory)
+                reference.pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
             }
             reference.target = targetMapping[reference.target] ?: reference.target
         }
@@ -432,6 +439,10 @@ class RsMoveCommonProcessor(
         replacePathOld(reference, pathNew)
     }
 
+    // "keep existing style" means that
+    // - if `pathOld` is `foo` then we keep it and add import for `foo`
+    // - if `pathOld` is `mod1::foo`, then we change it to `mod2::foo` and add import for `mod2`
+    // - etc for `outer1::mod1::foo`
     private fun tryRetargetReferenceKeepExistingStyle(reference: RsMoveReferenceInfo): Boolean {
         val pathOld = reference.pathOld
         val pathNew = reference.pathNew ?: return false
@@ -482,6 +493,11 @@ class RsMoveCommonProcessor(
         val pathOld = reference.pathOld
         val pathOldOriginal = reference.pathOldOriginal
 
+        if (pathOldOriginal !is RsPath) {
+            replacePathOldInPatIdent(pathOldOriginal as RsPatIdent, pathNew)
+            return
+        }
+
         if (tryReplacePathOldInUseGroup(pathOldOriginal, pathNew)) return
 
         if (pathOld.text == pathNew.text) return
@@ -496,6 +512,12 @@ class RsMoveCommonProcessor(
             return
         }
         pathOldOriginal.replace(pathNew)
+    }
+
+    private fun replacePathOldInPatIdent(pathOldOriginal: RsPatIdent, pathNew: RsPath) {
+        if (pathNew.coloncolon != null) return  // todo log error
+        val patBindingNew = psiFactory.createIdentifier(pathNew.text)
+        pathOldOriginal.patBinding.identifier.replace(patBindingNew)
     }
 
     private fun replacePathOldWithTypeArguments(pathOldOriginal: RsPath, pathNewText: String): Boolean {
@@ -631,7 +653,7 @@ class RsMoveCommonProcessor(
 
     companion object {
         private val RS_PATH_WRAPPER_KEY: Key<RsMoveReferenceInfo> = Key.create("RS_PATH_WRAPPER_KEY")
-        private val RS_PATH_BEFORE_MOVE_KEY: Key<RsPath> = Key.create("RS_PATH_BEFORE_MOVE_KEY")
+        private val RS_PATH_BEFORE_MOVE_KEY: Key<RsElement> = Key.create("RS_PATH_BEFORE_MOVE_KEY")
         private val RS_TARGET_BEFORE_MOVE_KEY: Key<RsQualifiedNamedElement> = Key.create("RS_TARGET_BEFORE_MOVE_KEY")
         private val RS_METHOD_CALL_TRAIT_USE_PATH: Key<Pair<RsTraitItem, String>> = Key.create("RS_METHOD_CALL_TRAIT_USE_PATH")
     }

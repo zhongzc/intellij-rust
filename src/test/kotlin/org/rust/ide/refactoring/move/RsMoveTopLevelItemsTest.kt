@@ -2147,6 +2147,92 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
+    fun `test outside reference to enum variant in old mod`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use Bar::*;
+            pub enum Bar { Bar1, Bar2 }
+            fn foo/*caret*/() {
+                let _ = Bar1;
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            use Bar::*;
+
+            pub enum Bar { Bar1, Bar2 }
+        }
+        mod mod2 {
+            use crate::mod1::Bar::Bar1;
+
+            fn foo() {
+                let _ = Bar1;
+            }
+        }
+    """)
+
+    fun `test outside reference to enum variant in other mod`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar::*;
+            fn foo/*caret*/() {
+                let _ = Bar1;
+            }
+        }
+        mod mod2/*target*/ {}
+        mod bar {
+            pub enum Bar { Bar1, Bar2 }
+        }
+    """, """
+    //- main.rs
+        mod mod1 {
+            use crate::bar::Bar::*;
+        }
+        mod mod2 {
+            use crate::bar::Bar::Bar1;
+
+            fn foo() {
+                let _ = Bar1;
+            }
+        }
+        mod bar {
+            pub enum Bar { Bar1, Bar2 }
+        }
+    """)
+
+    fun `test outside reference to enum variant in match`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            use Bar::*;
+            pub enum Bar { Bar1, Bar2 }
+            fn foo/*caret*/(bar: Bar) {
+                match bar {
+                    Bar1 | Bar2 => ()
+                }
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {
+            use Bar::*;
+
+            pub enum Bar { Bar1, Bar2 }
+        }
+        mod mod2 {
+            use crate::mod1::Bar;
+            use crate::mod1::Bar::{Bar1, Bar2};
+
+            fn foo(bar: Bar) {
+                match bar {
+                    Bar1 | Bar2 => ()
+                }
+            }
+        }
+    """)
+
     fun `test move to other crate simple`() = doTest("""
     //- main.rs
         mod mod1 {

@@ -31,19 +31,28 @@ class RsPathUsage(
 }
 
 class RsMoveReferenceInfo(
-    // todo comment why var
-    // `pathOld` is `pathOldOriginal` without type arguments
-    // e.g. if `pathOldOriginal` is  `mod1::mod2::Struct1::<T, R>`
-    //                                                   ~~~~~~~~
-    // then `pathOld` would be `mod1::mod2::Struct1`
+    // `pathOldOriginal` is real path (from user files)
+    // `pathOld` is our helper path (created with `RsCodeFragmentFactory`), which is more convenient to work with
+    //
+    // In most cases `pathOld` equals to `pathOldOriginal`, but there are two corner cases:
+    // 1) Paths with type arguments: `mod1::mod2::Struct1::<T, R>`
+    //                                ^~~~~~~~~~~~~~~~~~~~~~~~~~^ pathOldOriginal
+    //                                ^~~~~~~~~~~~~~~~~~^ pathOld
+    // 2) Paths to nullary enum variants in bindings
+    //    Unfortunately they are parsed as `RsPatIdent`:
+    //        match none_or_some {
+    //            None => ...
+    //            ^~~^ pathOldOriginal, pathOld
+    //
+    // mutable because it can be inside moved elements (if reference is outside), so after move we have to change it
     var pathOld: RsPath,
-    var pathOldOriginal: RsPath,
+    var pathOldOriginal: RsElement,  // `RsPath` or `RsPatIdent`
     // null means no accessible path found
     val pathNewAccessible: RsPath?,
     // fallback path to use when `pathNew == null` (if user choose "Continue" in conflicts view)
     val pathNewFallback: RsPath?,
     // == `pathOld.reference.resolve()`
-    // todo comment why var
+    // mutable because it can be inside moved elements, so after move we have to change it
     var target: RsQualifiedNamedElement,
     val forceReplaceDirectly: Boolean = false
 ) {
@@ -97,6 +106,18 @@ fun isSimplePath(path: RsPath): Boolean {
     val subpaths = generateSequence(path.path) { it.path }
     return subpaths.all { it.reference?.resolve() is RsMod }
 }
+
+// Creates `pathOld` from `pathOldOriginal`
+// See comment for `RsMoveReferenceInfo#pathOld` for details
+fun convertFromPathOriginal(pathOriginal: RsElement, codeFragmentFactory: RsCodeFragmentFactory): RsPath =
+    when (pathOriginal) {
+        is RsPath -> pathOriginal.removeTypeArguments(codeFragmentFactory)
+        is RsPatIdent -> {
+            val context = pathOriginal.context as? RsElement ?: pathOriginal
+            codeFragmentFactory.createPath(pathOriginal.text, context)!!
+        }
+        else -> error("unexpected pathOriginal: $pathOriginal, text=${pathOriginal.text}")
+    }
 
 // Converts `mod1::mod2::Struct1::<T>` to `mod1::mod2::Struct1`
 // Because it is much nicer to work with path when it does not have type arguments
