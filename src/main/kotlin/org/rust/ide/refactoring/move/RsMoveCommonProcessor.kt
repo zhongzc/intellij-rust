@@ -127,9 +127,9 @@ class RsMoveCommonProcessor(
 
     private fun collectOutsideReferences(): List<RsMoveReferenceInfo> {
         // we should collect:
-        // * absolute references (starts with "::", "crate" or some crate name)
-        // * references which starts with "super"
-        // * references from old mod scope:
+        // - absolute references (starts with "::", "crate" or some crate name) to same crate
+        // - references which starts with "super"
+        // - references from old mod scope:
         //     - to items in old mod
         //     - to something which is imported in old mod
 
@@ -186,6 +186,17 @@ class RsMoveCommonProcessor(
         }
 
         if (path.isAbsolute()) {
+            // when moving from binary to library crate, we should change path `library_crate::...` to `crate::...`
+            // when moving from one library crate to another, we should change path `crate::...` to `first_library::...`
+            val basePathTarget = path.basePath().reference?.resolve() as? RsMod
+            if (basePathTarget != null
+                && basePathTarget.crateRoot != sourceMod.crateRoot
+                && basePathTarget.crateRoot != targetMod.crateRoot
+            ) return null  // not needed to change path
+
+            // ideally this check is enough and above check is not needed
+            // but for some paths (e.g. `base64::decode`) `pathNew.reference.resolve()` is null,
+            // though actually path will be resolved correctly after move
             val pathNew = path.text.toRsPath(codeFragmentFactory, targetMod)
             if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
         }

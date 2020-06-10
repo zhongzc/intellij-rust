@@ -2408,4 +2408,60 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
             }
         }
     """)
+
+    fun `test absolute reference to library crate when move from library to binary`() = doTest("""
+    //- lib.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                crate::bar();
+            }
+        }
+        pub fn bar() {}
+    //- main.rs
+        mod mod2/*target*/ {}
+    """, """
+    //- lib.rs
+        mod mod1 {}
+        pub fn bar() {}
+    //- main.rs
+        mod mod2 {
+            fn foo() {
+                test_package::bar();
+            }
+        }
+    """)
+
+    fun `test absolute reference to library crate when move from binary to library`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                test_package::bar();
+            }
+        }
+    //- lib.rs
+        mod mod2/*target*/ {}
+        pub fn bar() {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+    //- lib.rs
+        mod mod2 {
+            fn foo() {
+                crate::bar();
+            }
+        }
+        pub fn bar() {}
+    """)
+
+    fun `test absolute reference to binary crate when move from binary to library`() = doTestConflictsError("""
+    //- main.rs
+        mod mod1 {
+            fn foo/*caret*/() {
+                crate::bar();
+            }
+        }
+        pub fn bar() {}
+    //- lib.rs
+        mod mod2/*target*/ {}
+    """)
 }
