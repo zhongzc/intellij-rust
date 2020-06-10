@@ -9,17 +9,19 @@ import com.intellij.lang.Language
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.refactoring.move.MoveCallback
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesHandler
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesUtil
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import org.rust.lang.RsLanguage
 import org.rust.lang.core.psi.RsFile
-import org.rust.lang.core.psi.ext.hasChildModules
 import org.rust.lang.core.psi.ext.isEdition2018
+import org.rust.stdext.mapToSet
 
 class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
 
@@ -28,16 +30,21 @@ class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
     override fun adjustTargetForMove(dataContext: DataContext?, targetContainer: PsiElement?): PsiElement? =
         (targetContainer as? PsiFile)?.containingDirectory ?: targetContainer
 
+    // todo adjustForMove:
+    //  - for foo.rs add directory foo
+    //  - for directory foo add foo.rs
+
     override fun canMove(
         elements: Array<out PsiElement>,
         targetContainer: PsiElement?,
         reference: PsiReference?
     ): Boolean {
-        if (elements.isEmpty()) return false
-        if (!elements.all { it.canBeMoved() }) return false
+        val files = PsiTreeUtil.filterAncestors(elements)
+            .map { it.adjustForMove() ?: return false }
+        if (files.isEmpty()) return false
+        if (!files.all { it.canBeMoved() }) return false
 
-        val sourceMod = (elements.first() as RsFile).`super`
-        if (elements.any { (it as RsFile).`super` != sourceMod }) return false
+        if (files.mapToSet { it.`super` }.size != 1) return false
 
         val adjustedTargetContainer = adjustTargetForMove(null, targetContainer)
         return super.canMove(elements, adjustedTargetContainer, reference)
@@ -52,8 +59,7 @@ class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
         if (!CommonRefactoringUtil.checkReadOnlyStatusRecursively(project, elements.toList(), true)) return
 
         val adjustedTargetContainer = adjustTargetForMove(null, targetContainer)
-        val adjustedElements = adjustForMove(project, elements, adjustedTargetContainer)
-            ?.map { it as RsFile }?.toTypedArray() ?: return
+        val adjustedElements = adjustForMove(project, elements, adjustedTargetContainer) ?: return
 
         val targetDirectory = MoveFilesOrDirectoriesUtil.resolveToDirectory(project, adjustedTargetContainer)
         // adjustedTargetContainer will be null if refactoring is performed by action (F6),
@@ -79,19 +85,17 @@ class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
     }
 }
 
-private fun PsiElement.canBeMoved(): Boolean {
-    if (this !is RsFile) return false
-
-    // TODO: support move files with its child modules
-    if (ownsDirectory) return false
-    if (hasChildModules()) return false
-
-    // TODO: support path attribute on mod declaration
-    if (pathAttribute != null) return false
-
-    return modName != null
+private fun RsFile.canBeMoved(): Boolean =
+    modName != null
         && crateRoot != null
         && crateRelativePath != null
         && !isCrateRoot
         && isEdition2018  // TODO: support 2015 edition
-}
+        && pathAttribute == null  // TODO: support path attribute on mod declaration
+
+fun PsiElement.adjustForMove(): RsFile? =
+    when (this) {
+        is PsiDirectory -> getOwningModAtDefaultLocation()
+        is RsFile -> this
+        else -> null
+    }

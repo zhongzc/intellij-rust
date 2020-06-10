@@ -10,10 +10,8 @@ import com.intellij.openapi.util.Ref
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.refactoring.move.MoveCallback
-import com.intellij.refactoring.move.MoveMultipleElementsViewDescriptor
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor
 import com.intellij.usageView.UsageInfo
-import com.intellij.usageView.UsageViewDescriptor
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.inspections.import.lastElement
@@ -34,14 +32,14 @@ import org.rust.lang.core.psi.ext.*
  */
 class RsMoveFilesOrDirectoriesProcessor(
     private val project: Project,
-    private val filesToMove: Array<RsFile>,
-    private val newParent: PsiDirectory,
+    filesOrDirectoriesToMove: Array<out PsiElement /* PsiDirectory or RsFile */>,
+    newParent: PsiDirectory,
     private val targetMod: RsMod,
     private val moveCallback: MoveCallback?,
     doneCallback: Runnable
 ) : MoveFilesOrDirectoriesProcessor(
     project,
-    filesToMove,
+    filesOrDirectoriesToMove,
     newParent,
     true,
     true,
@@ -49,6 +47,12 @@ class RsMoveFilesOrDirectoriesProcessor(
     null,  // we use `moveCallback` directly in `performRefactoring`
     doneCallback
 ) {
+
+    private val filesToMove: List<RsFile> = filesOrDirectoriesToMove.map {
+        // we checked that `adjustForMove` returns not null in `RsMoveFilesOrDirectoriesHandler#canMove`
+        it.adjustForMove()
+            ?: error("File or directory $it can't be moved")
+    }
 
     private val elementsToMove = filesToMove.map { ModToMove(it) }
     private val commonProcessor: RsMoveCommonProcessor = RsMoveCommonProcessor(project, elementsToMove, targetMod)
@@ -62,10 +66,7 @@ class RsMoveFilesOrDirectoriesProcessor(
         }
     }
 
-    override fun findUsages(): Array<out UsageInfo> {
-        val usages = super.findUsages()
-        return commonProcessor.convertToMoveUsages(usages)
-    }
+    override fun findUsages(): Array<out UsageInfo> = commonProcessor.findUsages()
 
     override fun preprocessUsages(refUsages: Ref<Array<UsageInfo>>): Boolean {
         val usages = refUsages.get()
@@ -117,9 +118,6 @@ class RsMoveFilesOrDirectoriesProcessor(
             targetMod.insertModDecl(psiFactory, newModDeclaration)
         }
     }
-
-    override fun createUsageViewDescriptor(usages: Array<out UsageInfo>): UsageViewDescriptor =
-        MoveMultipleElementsViewDescriptor(filesToMove, newParent.name)
 }
 
 private fun RsMod.insertModDecl(psiFactory: RsPsiFactory, modDecl: PsiElement) {

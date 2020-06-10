@@ -12,7 +12,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.intellij.openapiext.isUnitTestMode
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.DummyHolder
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.parentOfType
 import com.intellij.refactoring.RefactoringBundle.message
 import com.intellij.usageView.UsageInfo
@@ -71,24 +74,32 @@ class RsMoveCommonProcessor(
         if (targetMod == sourceMod) throw IncorrectOperationException("Source and destination modules should be different")
     }
 
-    fun convertToMoveUsages(usages: Array<UsageInfo>): Array<UsageInfo> {
-        return usages
-            .mapNotNull { usage ->
-                val element = usage.element
-                val reference = usage.reference
-                val target = reference?.resolve()
-                // todo text usages
-                if (element == null || reference == null || target == null) return@mapNotNull null
-
-                when {
-                    element is RsModDeclItem && target is RsFile -> RsModDeclUsage(element, target)
-                    element is RsPath && target is RsQualifiedNamedElement -> RsPathUsage(element, reference, target)
-                    else -> null
+    fun findUsages(): Array<UsageInfo> {
+        return elementsToMove
+            .map {
+                when (it) {
+                    is ItemToMove -> it.item
+                    is ModToMove -> it.mod
                 }
             }
+            .flatMap { ReferencesSearch.search(it, GlobalSearchScope.projectScope(project)) }
+            .filterNotNull()
+            .mapNotNull { createMoveUsageInfo(it) }
             // sorting is needed for stable results in tests
             .sortedWith(compareBy({ it.element.containingMod.crateRelativePath }, { it.element.startOffset }))
             .toTypedArray()
+    }
+
+    private fun createMoveUsageInfo(reference: PsiReference): RsMoveUsage? {
+        // todo text usages
+        val element = reference.element
+        val target = reference.resolve() ?: return null
+
+        return when {
+            element is RsModDeclItem && target is RsFile -> RsModDeclUsage(element, target)
+            element is RsPath && target is RsQualifiedNamedElement -> RsPathUsage(element, reference, target)
+            else -> null
+        }
     }
 
     fun preprocessUsages(usages: Array<UsageInfo>, conflicts: MultiMap<PsiElement, String>): Boolean {

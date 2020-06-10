@@ -12,7 +12,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.util.containers.map2Array
 import org.intellij.lang.annotations.Language
 import org.rust.RsTestBase
-import org.rust.lang.core.psi.RsFile
 import org.rust.openapiext.toPsiDirectory
 import org.rust.openapiext.toPsiFile
 
@@ -27,11 +26,10 @@ abstract class RsMoveFileTestBase : RsTestBase() {
         val psiElementsToMove = elementsToMove.map2Array {
             val virtualFile = rootDirectory.findFileByRelativePath(it)!!
             if (virtualFile.isDirectory) {
-                val directory = virtualFile.toPsiDirectory(project)!!
-                directory.findFile("mod.rs")
+                virtualFile.toPsiDirectory(project)!!
             } else {
                 virtualFile.toPsiFile(project)!!
-            } as RsFile
+            }
         }
 
         if (targetDirectory != ".") {

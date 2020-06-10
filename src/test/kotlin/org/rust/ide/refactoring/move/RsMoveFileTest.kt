@@ -365,4 +365,46 @@ class RsMoveFileTest : RsMoveFileTestBase() {
     //- mod2/foo2.rs
         pub fn func2() {}
     """)
+
+    fun `test move directory containing one file`() = doTest(
+        "foo",
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo/mod.rs
+        fn func() {}
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo/mod.rs
+        fn func() {}
+    """)
+
+    fun `test move directory containing two files`() = doTest(
+        "foo",
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo/mod.rs
+        mod inner;
+    //- foo/inner.rs
+        fn inner_func() {}
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo/mod.rs
+        mod inner;
+    //- mod2/foo/inner.rs
+        fn inner_func() {}
+    """)
 }

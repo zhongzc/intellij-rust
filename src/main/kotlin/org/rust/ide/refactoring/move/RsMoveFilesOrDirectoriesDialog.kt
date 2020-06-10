@@ -10,6 +10,8 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.showOkCancelDialog
 import com.intellij.psi.PsiDirectory
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.refactoring.RefactoringBundle
 import com.intellij.refactoring.RefactoringSettings
 import com.intellij.refactoring.copy.CopyFilesOrDirectoriesHandler
@@ -18,7 +20,6 @@ import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectori
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesUtil
 import com.intellij.refactoring.util.CommonRefactoringUtil
-import com.intellij.util.IncorrectOperationException
 import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.cargo.project.workspace.PackageOrigin
 import org.rust.lang.RsConstants
@@ -31,18 +32,20 @@ import org.rust.openapiext.toPsiFile
 
 class RsMoveFilesOrDirectoriesDialog(
     project: Project,
-    private val elementsToMove: Array<RsFile>,
+    private val filesOrDirectoriesToMove: Array<out PsiElement /* PsiDirectory or RsFile */>,
     initialTargetDirectory: PsiDirectory?,
     private val moveCallback: MoveCallback?
-) : MoveFilesOrDirectoriesDialog(project, /* todo */ elementsToMove, initialTargetDirectory) {
+) : MoveFilesOrDirectoriesDialog(project, /* todo */ filesOrDirectoriesToMove, initialTargetDirectory) {
 
     override fun performMove(targetDirectory: PsiDirectory) {
         if (!CommonRefactoringUtil.checkReadOnlyStatus(project, targetDirectory)) return
-        if (!CommonRefactoringUtil.checkReadOnlyStatus(project, elementsToMove.toList(), true)) return
+        if (!CommonRefactoringUtil.checkReadOnlyStatus(project, filesOrDirectoriesToMove.toList(), true)) return
 
         try {
-            for (element in elementsToMove) {
-                CopyFilesOrDirectoriesHandler.checkFileExist(targetDirectory, null, element, element.name, "Move")
+            for (element in filesOrDirectoriesToMove) {
+                if (element is PsiFile) {
+                    CopyFilesOrDirectoriesHandler.checkFileExist(targetDirectory, null, element, element.name, "Move")
+                }
                 MoveFilesOrDirectoriesUtil.checkMove(element, targetDirectory)
             }
 
@@ -50,7 +53,7 @@ class RsMoveFilesOrDirectoriesDialog(
             val searchForReferences = RefactoringSettings.getInstance().MOVE_SEARCH_FOR_REFERENCES_FOR_FILE
 
             doPerformMove(targetDirectory, searchForReferences, doneCallback)
-        } catch (e: IncorrectOperationException) {
+        } catch (e: Exception) {
             val title = RefactoringBundle.message("error.title")
             CommonRefactoringUtil.showErrorMessage(title, e.message, "refactoring.moveFile", project)
         }
@@ -61,7 +64,7 @@ class RsMoveFilesOrDirectoriesDialog(
         fun runDefaultProcessor() {
             MoveFilesOrDirectoriesProcessor(
                 project,
-                elementsToMove,
+                filesOrDirectoriesToMove,
                 targetDirectory,
                 /* searchForReferences = */ false,
                 /* searchInComments = */ true,
@@ -76,7 +79,7 @@ class RsMoveFilesOrDirectoriesDialog(
             return
         }
 
-        val crateRoot = elementsToMove.first().crateRoot
+        val crateRoot = filesOrDirectoriesToMove.first().adjustForMove()?.crateRoot
             ?: error("One of moved file is not included in module tree")
         val targetMod = targetDirectory.getOwningMod(crateRoot)
         if (targetMod == null) {
@@ -88,7 +91,7 @@ class RsMoveFilesOrDirectoriesDialog(
 
         RsMoveFilesOrDirectoriesProcessor(
             project,
-            elementsToMove,
+            filesOrDirectoriesToMove,
             targetDirectory,
             targetMod,
             moveCallback,
@@ -125,9 +128,9 @@ private fun PsiDirectory.getOwningMod(crateRoot: RsMod): RsMod? {
     }
 }
 
-private fun PsiDirectory.getOwningModAtDefaultLocation(): RsMod? {
-    val file1 = findFile(RsConstants.MOD_RS_FILE) as? RsMod
-    val file2 = parentDirectory?.findFile("$name.rs") as? RsMod
+fun PsiDirectory.getOwningModAtDefaultLocation(): RsFile? {
+    val file1 = findFile(RsConstants.MOD_RS_FILE) as? RsFile
+    val file2 = parentDirectory?.findFile("$name.rs") as? RsFile
     return file1.takeIf { file2 == null }
         ?: file2.takeIf { file1 == null }
 }

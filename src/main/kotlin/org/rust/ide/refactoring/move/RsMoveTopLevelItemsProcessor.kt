@@ -9,8 +9,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Ref
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiWhiteSpace
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.refactoring.BaseRefactoringProcessor
 import com.intellij.refactoring.move.MoveMultipleElementsViewDescriptor
 import com.intellij.usageView.UsageInfo
@@ -39,16 +37,7 @@ class RsMoveTopLevelItemsProcessor(
 
     override fun findUsages(): Array<UsageInfo> {
         if (!searchForReferences) return UsageInfo.EMPTY_ARRAY
-        val usages = doFindUsages()
-        return commonProcessor.convertToMoveUsages(usages)
-    }
-
-    private fun doFindUsages(): Array<UsageInfo> {
-        return itemsToMove
-            .flatMap { ReferencesSearch.search(it, GlobalSearchScope.projectScope(project)) }
-            .filterNotNull()
-            .map { UsageInfo(it) }
-            .toTypedArray()
+        return commonProcessor.findUsages()
     }
 
     private fun checkNoItemsWithSameName(conflicts: MultiMap<PsiElement, String>) {
