@@ -48,11 +48,13 @@ class RsMoveFilesOrDirectoriesProcessor(
     doneCallback
 ) {
 
-    private val filesToMove: List<RsFile> = filesOrDirectoriesToMove.map {
-        // we checked that `adjustForMove` returns not null in `RsMoveFilesOrDirectoriesHandler#canMove`
-        it.adjustForMove()
-            ?: error("File or directory $it can't be moved")
-    }
+    private val filesToMove: Set<RsFile> = filesOrDirectoriesToMove
+        .map {
+            // we checked that `adjustForMove` returns not null in `RsMoveFilesOrDirectoriesHandler#canMove`
+            it.adjustForMove()
+                ?: error("File or directory $it can't be moved")
+        }
+        .toSet()
 
     private val elementsToMove = filesToMove.map { ModToMove(it) }
     private val commonProcessor: RsMoveCommonProcessor = RsMoveCommonProcessor(project, elementsToMove, targetMod)

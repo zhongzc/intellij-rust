@@ -92,7 +92,7 @@ class RsMoveTopLevelItemsDialog(
             }
             row {
                 cell(isFullWidth = true) {
-                    checkBox(message("search.for.references"), searchForReferences)
+                    checkBox(message("search.for.references"), ::searchForReferences)
                 }
             }
         }.also { it.preferredSize = Dimension(600, 400) }

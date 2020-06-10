@@ -30,9 +30,27 @@ class RsMoveFilesOrDirectoriesHandler : MoveFilesOrDirectoriesHandler() {
     override fun adjustTargetForMove(dataContext: DataContext?, targetContainer: PsiElement?): PsiElement? =
         (targetContainer as? PsiFile)?.containingDirectory ?: targetContainer
 
-    // todo adjustForMove:
-    //  - for foo.rs add directory foo
-    //  - for directory foo add foo.rs
+    override fun adjustForMove(
+        project: Project?,
+        elements: Array<out PsiElement>,
+        targetElement: PsiElement?
+    ): Array<PsiElement>? {
+        // When moving file `foo.rs`, we should add directory `foo`
+        // When moving directory `foo`, we should add file `foo.rs`
+        val elementsWithRelated = elements
+            .flatMap {
+                val file = it.adjustForMove()
+                val directory = file?.getOwnedDirectory()
+                if (file != null && directory != null) {
+                    listOf(file, directory)
+                } else {
+                    listOf(it)
+                }
+            }
+            .toSet()
+            .toTypedArray()
+        return super.adjustForMove(project, elementsWithRelated, targetElement)
+    }
 
     override fun canMove(
         elements: Array<out PsiElement>,

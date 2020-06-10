@@ -407,4 +407,73 @@ class RsMoveFileTest : RsMoveFileTestBase() {
     //- mod2/foo/inner.rs
         fn inner_func() {}
     """)
+
+    fun `test move directory when owning file is outside`() = doTest(
+        "foo",
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo.rs
+        mod inner;
+    //- foo/inner.rs
+        fn inner_func() {}
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo.rs
+        mod inner;
+    //- mod2/foo/inner.rs
+        fn inner_func() {}
+    """)
+
+    fun `test move file when it is outside owning directory`() = doTest(
+        "foo",
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo.rs
+        mod inner;
+    //- foo/inner.rs
+        fn inner_func() {}
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo.rs
+        mod inner;
+    //- mod2/foo/inner.rs
+        fn inner_func() {}
+    """)
+
+    fun `test move both file and directory when file is outside owning directory`() = doTest(
+        arrayOf("foo", "foo.rs"),
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo.rs
+        mod inner;
+    //- foo/inner.rs
+        fn inner_func() {}
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo.rs
+        mod inner;
+    //- mod2/foo/inner.rs
+        fn inner_func() {}
+    """)
 }

@@ -36,7 +36,10 @@ abstract class RsMoveFileTestBase : RsTestBase() {
             runWriteAction { VfsUtil.createDirectoryIfMissing(rootDirectory, targetDirectory) }
         }
         val psiTargetDirectory = rootDirectory.findFileByRelativePath(targetDirectory)!!.toPsiDirectory(project)!!
-        RsMoveFilesOrDirectoriesDialog(project, psiElementsToMove, null, null)
+
+        val psiElementsToMoveAdjusted = RsMoveFilesOrDirectoriesHandler()
+            .adjustForMove(project, psiElementsToMove, psiTargetDirectory)!!
+        RsMoveFilesOrDirectoriesDialog(project, psiElementsToMoveAdjusted, null, null)
             .doPerformMove(psiTargetDirectory, searchForReferences, EmptyRunnable.INSTANCE)
     }
 
