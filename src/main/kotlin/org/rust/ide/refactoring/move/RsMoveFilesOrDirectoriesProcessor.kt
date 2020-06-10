@@ -33,7 +33,7 @@ import org.rust.lang.core.psi.ext.*
  *     We replace path with absolute if there are few usages of this path in the file, otherwise add new import
  */
 class RsMoveFilesOrDirectoriesProcessor(
-    project: Project,
+    private val project: Project,
     private val filesToMove: Array<RsFile>,
     private val newParent: PsiDirectory,
     private val targetMod: RsMod,
@@ -46,29 +46,17 @@ class RsMoveFilesOrDirectoriesProcessor(
     true,
     true,
     true,
-    null,  // we use moveCallback directly in performRefactoring
+    null,  // we use `moveCallback` directly in `performRefactoring`
     doneCallback
 ) {
-
-    private val psiFactory: RsPsiFactory = RsPsiFactory(project)
-
-    private val movedFile: RsFile = filesToMove.single()
 
     private val elementsToMove = filesToMove.map { ModToMove(it) }
     private val commonProcessor: RsMoveCommonProcessor = RsMoveCommonProcessor(project, elementsToMove, targetMod)
 
-    override fun doRun() {
-        checkMove()
-        super.doRun()
-    }
-
-    private fun checkMove() {
-        // TODO: support move multiple files
-        check(filesToMove.size == 1)
-
-        check(targetMod.crateRoot == movedFile.crateRoot)
-        movedFile.modName?.let {
-            if (targetMod.getChildModule(it) != null) {
+    init {
+        for (file in filesToMove) {
+            val modName = file.modName ?: continue
+            if (targetMod.getChildModule(modName) != null) {
                 throw IncorrectOperationException("Cannot move. Mod with same crate relative path already exists")
             }
         }
@@ -87,40 +75,47 @@ class RsMoveFilesOrDirectoriesProcessor(
     }
 
     private fun checkSingleModDeclaration(usages: Array<UsageInfo>) {
-        val modDeclarations = usages.filterIsInstance<RsModDeclUsage>()
-        // files not included in module tree are filtered in RsMoveFilesOrDirectoriesHandler::canMove
-        // by check file.crateRoot != null
-        check(modDeclarations.isNotEmpty())
-        if (modDeclarations.size > 1) {
-            throw IncorrectOperationException("Can't move ${movedFile.name}.\nIt is declared in more than one parent modules")
+        val modDeclarationsByFile = usages
+            .filterIsInstance<RsModDeclUsage>()
+            .groupBy { it.file }
+        for (file in filesToMove) {
+            val modDeclarations = modDeclarationsByFile[file]
+                ?: error("Can't move ${file.name}.\nIt is not included in module tree")
+            if (modDeclarations.size > 1) {
+                error("Can't move ${file.name}.\nIt is declared in more than one parent modules")
+            }
         }
     }
 
     override fun performRefactoring(usages: Array<out UsageInfo>) {
         val oldModDeclarations = usages.filterIsInstance<RsModDeclUsage>()
         commonProcessor.performRefactoring(usages) {
-            moveFilesAndModuleDeclarations(oldModDeclarations)
+            moveFilesAndModDeclarations(oldModDeclarations)
             // after move `RsFile`s remain valid
             elementsToMove
         }
         moveCallback?.refactoringCompleted()
     }
 
-    private fun moveFilesAndModuleDeclarations(oldModDeclarations: List<RsModDeclUsage>) {
+    private fun moveFilesAndModDeclarations(oldModDeclarations: List<RsModDeclUsage>) {
         moveModDeclaration(oldModDeclarations)
         super.performRefactoring(emptyArray())
 
-        check(!movedFile.crateRelativePath.isNullOrEmpty())
-        { "${movedFile.name} had correct crateRelativePath before moving mod-declaration, but empty/null after move" }
+        for (file in filesToMove) {
+            check(!file.crateRelativePath.isNullOrEmpty())
+            { "${file.name} had correct crateRelativePath before moving mod-declaration, but empty/null after move" }
+        }
     }
 
-    private fun moveModDeclaration(oldModDeclarations: List<RsModDeclUsage>) {
-        val reference = oldModDeclarations.single()
-        val oldModDeclaration = reference.element
-        commonProcessor.updateMovedItemVisibility(oldModDeclaration, reference.file)
-        val newModDeclaration = oldModDeclaration.copy()
-        oldModDeclaration.delete()
-        targetMod.insertModDecl(psiFactory, newModDeclaration)
+    private fun moveModDeclaration(oldModDeclarationsAll: List<RsModDeclUsage>) {
+        val psiFactory = RsPsiFactory(project)
+        for ((file, oldModDeclarations) in oldModDeclarationsAll.groupBy { it.file }) {
+            val oldModDeclaration = oldModDeclarations.single().element
+            commonProcessor.updateMovedItemVisibility(oldModDeclaration, file)
+            val newModDeclaration = oldModDeclaration.copy()
+            oldModDeclaration.delete()
+            targetMod.insertModDecl(psiFactory, newModDeclaration)
+        }
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>): UsageViewDescriptor =

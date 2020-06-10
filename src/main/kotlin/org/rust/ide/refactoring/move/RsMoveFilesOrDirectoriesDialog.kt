@@ -34,7 +34,7 @@ class RsMoveFilesOrDirectoriesDialog(
     private val elementsToMove: Array<RsFile>,
     initialTargetDirectory: PsiDirectory?,
     private val moveCallback: MoveCallback?
-) : MoveFilesOrDirectoriesDialog(project, elementsToMove, initialTargetDirectory) {
+) : MoveFilesOrDirectoriesDialog(project, /* todo */ elementsToMove, initialTargetDirectory) {
 
     override fun performMove(targetDirectory: PsiDirectory) {
         if (!CommonRefactoringUtil.checkReadOnlyStatus(project, targetDirectory)) return
@@ -51,7 +51,8 @@ class RsMoveFilesOrDirectoriesDialog(
 
             doPerformMove(targetDirectory, searchForReferences, doneCallback)
         } catch (e: IncorrectOperationException) {
-            CommonRefactoringUtil.showErrorMessage(RefactoringBundle.message("error.title"), e.message, "refactoring.moveFile", project)
+            val title = RefactoringBundle.message("error.title")
+            CommonRefactoringUtil.showErrorMessage(title, e.message, "refactoring.moveFile", project)
         }
     }
 
@@ -75,32 +76,24 @@ class RsMoveFilesOrDirectoriesDialog(
             return
         }
 
-        val movedFile = elementsToMove.singleOrNull()
-            ?: error("Currently move is supported only for single file")
-        val crateRoot = movedFile.crateRoot
-            ?: error("movedFile.crateRoot is checked for null in RsMoveFilesOrDirectoriesHandler::canMove")
+        val crateRoot = elementsToMove.first().crateRoot
+            ?: error("One of moved file is not included in module tree")
         val targetMod = targetDirectory.getOwningMod(crateRoot)
-        when {
-            targetMod == null -> {
-                if (askShouldMoveIfNoNewParentMod()) {
-                    runDefaultProcessor()
-                }
-            }
-            targetMod.crateRoot != movedFile.crateRoot -> {
-                // TODO: support move file to different crate
+        if (targetMod == null) {
+            if (askShouldMoveIfNoNewParentMod()) {
                 runDefaultProcessor()
             }
-            else -> {
-                RsMoveFilesOrDirectoriesProcessor(
-                    project,
-                    elementsToMove,
-                    targetDirectory,
-                    targetMod,
-                    moveCallback,
-                    doneCallback
-                ).run()
-            }
+            return
         }
+
+        RsMoveFilesOrDirectoriesProcessor(
+            project,
+            elementsToMove,
+            targetDirectory,
+            targetMod,
+            moveCallback,
+            doneCallback
+        ).run()
     }
 
     private fun askShouldMoveIfNoNewParentMod(): Boolean {

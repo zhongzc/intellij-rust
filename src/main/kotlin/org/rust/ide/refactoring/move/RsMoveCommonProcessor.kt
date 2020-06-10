@@ -81,7 +81,7 @@ class RsMoveCommonProcessor(
                 if (element == null || reference == null || target == null) return@mapNotNull null
 
                 when {
-                    element is RsModDeclItem -> RsModDeclUsage(element, target as RsFile)
+                    element is RsModDeclItem && target is RsFile -> RsModDeclUsage(element, target)
                     element is RsPath && target is RsQualifiedNamedElement -> RsPathUsage(element, reference, target)
                     else -> null
                 }
@@ -484,8 +484,6 @@ class RsMoveCommonProcessor(
         replacePathOld(reference, pathNewShort)
         return true
     }
-
-    // todo remove forceAddImport
 
     // if `target` is struct/enum/... then we add import for this item
     // if `target` is function then we add import for its `containingMod`

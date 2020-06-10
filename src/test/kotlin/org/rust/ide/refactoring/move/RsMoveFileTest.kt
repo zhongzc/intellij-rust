@@ -19,6 +19,29 @@ class RsMoveFileTest : RsMoveFileTestBase() {
 
     fun `test rename outside references`() = doTest("mod1/mod1_inner/foo.rs", "mod2")
 
+    fun `test simple`() = doTest(
+        "mod1/foo.rs",
+        "mod2",
+        """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1/mod.rs
+        mod foo;
+    //- mod2.rs
+    //- mod1/foo.rs
+        pub fn func() {}
+    """, """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1/mod.rs
+    //- mod2.rs
+        mod foo;
+    //- mod2/foo.rs
+        pub fn func() {}
+    """)
+
     fun `test parent modules are declared inline`() = doTest(
         "mod1/mod1_inner/foo.rs",
         "mod2/mod2_inner",
@@ -313,4 +336,33 @@ class RsMoveFileTest : RsMoveFileTestBase() {
             pub fn func() {}
         """)
     }
+
+    fun `test move multiple files`() = doTest(
+        arrayOf("mod1/foo1.rs", "mod1/foo2.rs"),
+        "mod2",
+        """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1/mod.rs
+        mod foo1;
+        mod foo2;
+    //- mod2.rs
+    //- mod1/foo1.rs
+        pub fn func1() {}
+    //- mod1/foo2.rs
+        pub fn func2() {}
+    """, """
+    //- main.rs
+        mod mod1;
+        mod mod2;
+    //- mod1/mod.rs
+    //- mod2.rs
+        mod foo1;
+        mod foo2;
+    //- mod2/foo1.rs
+        pub fn func1() {}
+    //- mod2/foo2.rs
+        pub fn func2() {}
+    """)
 }
