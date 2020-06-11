@@ -166,12 +166,21 @@ fun RsPath.isInsideMetaItem(target: RsQualifiedNamedElement): Boolean {
     return contextOfType<RsMetaItem>() != null && target.containingCargoPackage?.origin != PackageOrigin.STDLIB
 }
 
+// returns `super` instead of `this` for `RsFile`
+// actually it is a bit inconsistent that `containingMod` for RsMod
+// returns `super` when mod is `RsModItem` and `this` when mod is `RsFile`
+val RsElement.containingModStrict: RsMod
+    get() = when (this) {
+        is RsMod -> `super` ?: this
+        else -> containingMod
+    }
+
 fun RsElement.isInsideMovedElements(elementsToMove: List<ElementToMove>): Boolean {
     if (containingFile is RsCodeFragment) LOG.error("Unexpected containingFile: $containingFile")
     return elementsToMove.any {
         when (it) {
             is ItemToMove -> PsiTreeUtil.isAncestor(it.item, this, false)
-            is ModToMove -> containingMod.superMods.contains(it.mod)
+            is ModToMove -> containingModStrict.superMods.contains(it.mod)
         }
     }
 }
@@ -236,6 +245,7 @@ fun RsVisRestriction.updateScopeIfNecessary(psiFactory: RsPsiFactory, newParent:
 fun addImport(psiFactory: RsPsiFactory, context: RsElement, usePath: String) {
     if (!usePath.contains("::")) return
     val blockScope = context.ancestors.find { it is RsBlock && it.childOfType<RsUseItem>() != null } as RsBlock?
+    check(context !is RsMod)
     val scope = blockScope ?: context.containingMod
     scope.insertUseItem(psiFactory, usePath)
 }

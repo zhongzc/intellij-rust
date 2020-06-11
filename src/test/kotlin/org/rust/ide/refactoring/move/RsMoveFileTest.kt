@@ -476,4 +476,35 @@ class RsMoveFileTest : RsMoveFileTestBase() {
     //- mod2/foo/inner.rs
         fn inner_func() {}
     """)
+
+    fun `test self reference from child mod of moved file`() = doTest(
+        "foo",
+        "mod2",
+        """
+    //- main.rs
+        mod foo;
+        mod mod2;
+    //- mod2/mod.rs
+    //- foo.rs
+        mod inner;
+        fn foo_func() {}
+    //- foo/inner.rs
+        fn inner_func() {
+            use crate::foo;
+            foo::foo_func();
+        }
+    """, """
+    //- main.rs
+        mod mod2;
+    //- mod2/mod.rs
+        mod foo;
+    //- mod2/foo.rs
+        mod inner;
+        fn foo_func() {}
+    //- mod2/foo/inner.rs
+        fn inner_func() {
+            use crate::mod2::foo;
+            foo::foo_func();
+        }
+    """)
 }

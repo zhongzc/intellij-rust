@@ -91,12 +91,13 @@ class RsMoveCommonProcessor(
 
     private val sourceMod: RsMod = elementsToMove
         .map {
+            @Suppress("USELESS_CAST")  // cast is not useless, compilation failed without cast
             when (it) {
-                is ModToMove -> (it.mod as? RsFile)?.declaration ?: it.mod
+                is ModToMove -> it.mod
                 is ItemToMove -> it.item
-            }
+            } as RsElement
         }
-        .map { it.containingMod }
+        .map { it.containingModStrict }
         .distinct()
         .singleOrNull()
         ?: error("Elements to move must belong to single parent mod")
@@ -223,7 +224,7 @@ class RsMoveCommonProcessor(
 
         // after move both `path` and its target will belong to `targetMod`
         // so we can refer to item in `targetMod` just with its name
-        if (path.containingMod == sourceMod && target.containingMod == targetMod) {
+        if (path.containingMod == sourceMod && target.containingModStrict == targetMod) {
             val pathNew = target.name?.toRsPath(psiFactory)
             if (pathNew != null) {
                 return RsMoveReferenceInfo(path, pathOriginal, pathNew, pathNew, target, forceReplaceDirectly = true)
@@ -286,7 +287,7 @@ class RsMoveCommonProcessor(
         if (isSelfReference) {
             // after move path will be in `targetMod`
             // so we can refer to moved item just with its name
-            check(target.containingMod == sourceMod)  // any inside reference is reference to moved item
+            check(target.containingModStrict == sourceMod)  // any inside reference is reference to moved item
             if (path.containingMod == sourceMod) {
                 val pathNew = target.name?.toRsPath(codeFragmentFactory, targetMod)
                 if (pathNew != null) return RsMoveReferenceInfo(path, pathOriginal, pathNew, pathNew, target)

@@ -5,6 +5,7 @@
 
 package org.rust.ide.refactoring.move
 
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.util.text.StringUtil
@@ -133,6 +134,7 @@ class RsMoveTopLevelItemsDialog(
             val processor = RsMoveTopLevelItemsProcessor(project, itemsToMove, targetMod, searchForReferences)
             invokeRefactoring(processor)
         } catch (e: Exception) {
+            Logger.getInstance(RsMoveTopLevelItemsDialog::class.java).error(e)
             CommonRefactoringUtil.showErrorMessage(message("error.title"), e.message, null, project)
         }
     }

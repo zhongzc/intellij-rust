@@ -110,9 +110,9 @@ class RsMoveRetargetReferencesProcessor(
         if (numberSegments != 1 || target !is RsFunction) return numberSegments
         val isReferenceBetweenElementsInSourceMod =
             // from item in source mod to moved item
-            pathOldOriginal.containingMod == sourceMod && target.containingMod == targetMod
+            pathOldOriginal.containingMod == sourceMod && target.containingModStrict == targetMod
                 // from moved item to item in source mod
-                || pathOldOriginal.containingMod == targetMod && target.containingMod == sourceMod
+                || pathOldOriginal.containingMod == targetMod && target.containingModStrict == sourceMod
         return if (isReferenceBetweenElementsInSourceMod) 2 else numberSegments
     }
 
