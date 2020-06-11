@@ -46,7 +46,7 @@ class RsMoveRandomItemsAction : AnAction() {
 }
 
 const val REPEATS: Int = 10
-const val MOVE_TO_SAME_CRATE: Boolean = true
+const val MOVE_TO_SAME_CRATE: Boolean = false
 val RANDOM: Random = Random.Default
 
 @ExperimentalStdlibApi
@@ -134,7 +134,7 @@ fun moveRandomItems(project: Project, sourceMod: RsMod, targetMod: RsMod): Boole
         RsMoveTopLevelItemsProcessor(project, itemsToMove, targetMod, searchForReferences = true, throwOnConflicts = true).run()
         true
     } catch (e: BaseRefactoringProcessor.ConflictsInTestsException) {
-        // todo move even if conflicts, and check that `cargo check` report errors after move ?
+        // TODO: move even if conflicts, and check that `cargo check` report errors after move ?
         false
     } catch (e: Exception) {
         val title = RefactoringBundle.message("error.title")

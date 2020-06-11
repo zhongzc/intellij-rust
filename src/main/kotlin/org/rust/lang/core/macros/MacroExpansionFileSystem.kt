@@ -12,6 +12,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.NewVirtualFileSystem
 import com.intellij.openapi.vfs.newvfs.VfsImplUtil
+import com.intellij.openapiext.isUnitTestMode
 import com.intellij.util.ArrayUtil
 import com.intellij.util.PathUtilRt
 import org.rust.lang.core.macros.MacroExpansionFileSystem.Companion.readFSItem
@@ -281,7 +282,7 @@ class MacroExpansionFileSystem : NewVirtualFileSystem() {
             ) : FSDir(parent, name, timestamp) {
                 override val children: MutableList<FSItem>
                     get() {
-                        // if (isUnitTestMode) error("DummyDir should not be touched!")
+                        if (isUnitTestMode) error("DummyDir should not be touched!")
                         parent?.removeChild(name, bump = false)
                         return mutableListOf()
                     }
