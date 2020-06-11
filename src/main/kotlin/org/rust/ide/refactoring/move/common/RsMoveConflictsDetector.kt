@@ -7,6 +7,7 @@ package org.rust.ide.refactoring.move.common
 
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
+import com.intellij.psi.util.parentOfType
 import com.intellij.psi.util.parentsWithSelf
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.refactoring.util.RefactoringUIUtil
@@ -73,8 +74,11 @@ class RsMoveConflictsDetector(
     // we create temp child mod of `targetMod` and copy `target` to this temp mod
     private fun checkVisibilityForInsideReference(referenceElement: RsElement, target: RsVisible) {
         if (target.visibility == RsVisibility.Public) return
-        if (target.containingModStrict != sourceMod) return  // all moved items belongs to `sourceMod`
-        val item = target.getTopmostParentInside(target.containingModStrict)
+        // can't use `containingMod` directly,
+        // because if `target` is expanded by macros, then it will be inside special file
+        val targetContainingMod = target.parentOfType<RsMod>() ?: return
+        if (targetContainingMod != sourceMod) return  // all moved items belongs to `sourceMod`
+        val item = target.getTopmostParentInside(targetContainingMod)
         // it is enough to check only references to descendants of moved items (not mods),
         // because if something in inner mod is private, then it was not accessible before move
         if (elementsToMove.none { (it as? ItemToMove)?.item == item }) return

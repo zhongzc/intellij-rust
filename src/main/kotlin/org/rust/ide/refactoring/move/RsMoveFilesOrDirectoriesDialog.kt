@@ -142,6 +142,7 @@ private fun PsiDirectory.getOwningModWalkingFromCrateRoot(crateRoot: RsMod): RsM
     val crateRootPath = crateRootDirectory.virtualFile.pathAsPath
     val path = virtualFile.pathAsPath
     if (!path.startsWith(crateRootPath)) return null
+    if (this == crateRootDirectory) return crateRoot
 
     var mod = crateRoot
     for (segmentPath in crateRootPath.relativize(path)) {
@@ -155,7 +156,7 @@ private fun PsiDirectory.getOwningModWalkingFromAllCrateRoots(cargoWorkspace: Ca
     val cargoPackages = cargoWorkspace.packages.filter { it.origin == PackageOrigin.WORKSPACE }
     for (cargoPackage in cargoPackages) {
         for (cargoTarget in cargoPackage.targets) {
-            val crateRoot = cargoTarget.crateRoot?.toPsiFile(project) as? RsMod ?: continue
+            val crateRoot = cargoTarget.crateRoot?.toPsiFile(project) as? RsFile ?: continue
             val owningMod = getOwningModWalkingFromCrateRoot(crateRoot)
             if (owningMod != null) return owningMod
         }
