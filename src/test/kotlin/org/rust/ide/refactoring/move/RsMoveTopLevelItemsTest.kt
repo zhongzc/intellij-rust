@@ -1553,7 +1553,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test self references from moved submodule 1`() = doTest("""
+    fun `test self references from inner mod 1`() = doTest("""
     //- main.rs
         mod mod1 {
             mod foo1/*caret*/ {
@@ -1591,7 +1591,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test self references from moved submodule 2`() = doTest("""
+    fun `test self references from inner mod 2`() = doTest("""
     //- main.rs
         mod mod1 {
             mod foo1/*caret*/ {
@@ -1629,7 +1629,29 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         }
     """)
 
-    fun `test self references to moved submodule`() = doTest("""
+    fun `test self references from inner mod using super`() = doTest("""
+    //- main.rs
+        mod mod1 {
+            mod foo/*caret*/ {
+                mod test {
+                    use super::*;
+                }
+            }
+        }
+        mod mod2/*target*/ {}
+    """, """
+    //- main.rs
+        mod mod1 {}
+        mod mod2 {
+            mod foo {
+                mod test {
+                    use super::*;
+                }
+            }
+        }
+    """)
+
+    fun `test self references to inner mod`() = doTest("""
     //- main.rs
         mod mod1 {
             mod foo1/*caret*/ {

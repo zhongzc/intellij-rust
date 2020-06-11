@@ -166,6 +166,8 @@ fun RsPath.isInsideMetaItem(target: RsQualifiedNamedElement): Boolean {
     return contextOfType<RsMetaItem>() != null && target.containingCargoPackage?.origin != PackageOrigin.STDLIB
 }
 
+val RsElement.containingModOrSelf: RsMod get() = (this as? RsMod) ?: containingMod
+
 // returns `super` instead of `this` for `RsFile`
 // actually it is a bit inconsistent that `containingMod` for RsMod
 // returns `super` when mod is `RsModItem` and `this` when mod is `RsFile`
@@ -180,7 +182,7 @@ fun RsElement.isInsideMovedElements(elementsToMove: List<ElementToMove>): Boolea
     return elementsToMove.any {
         when (it) {
             is ItemToMove -> PsiTreeUtil.isAncestor(it.item, this, false)
-            is ModToMove -> containingModStrict.superMods.contains(it.mod)
+            is ModToMove -> containingModOrSelf.superMods.contains(it.mod)
         }
     }
 }
