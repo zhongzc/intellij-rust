@@ -10,14 +10,15 @@ import com.intellij.psi.PsiElement
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.inspections.import.RsImportHelper
 import org.rust.lang.core.psi.RsMethodCall
+import org.rust.lang.core.psi.RsPsiFactory
 import org.rust.lang.core.psi.RsTraitItem
 import org.rust.lang.core.psi.ext.*
 
 class RsMoveTraitMethodsProcessor(
+    private val psiFactory: RsPsiFactory,
     private val sourceMod: RsMod,
     private val targetMod: RsMod,
-    private val pathHelper: RsMovePathHelper,
-    private val addImport: (RsElement, String) -> Unit
+    private val pathHelper: RsMovePathHelper
 ) {
 
     fun preprocessOutsideReferencesToTraitMethods(
@@ -86,7 +87,7 @@ class RsMoveTraitMethodsProcessor(
             val (trait, traitUsePath) = methodCall.getCopyableUserData(RS_METHOD_CALL_TRAIT_USE_PATH) ?: continue
             // can't check `methodCall.reference.resolve() != null`, because it is always not null
             if (listOf(trait).filterInScope(methodCall).isNotEmpty()) continue
-            addImport(methodCall, traitUsePath)
+            addImport(psiFactory, methodCall, traitUsePath)
         }
     }
 

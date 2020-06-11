@@ -1143,10 +1143,10 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     fun `test absolute outside reference which should be changed because of reexports`() = doTest("""
     //- main.rs
         mod inner1 {
+            pub use bar::*;
             mod mod1 {
                 fn foo/*caret*/() { crate::inner1::bar::bar_func(); }
             }
-            pub use bar::*;
             // private
             mod bar { pub fn bar_func() {} }
         }
@@ -1154,8 +1154,9 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
     """, """
     //- main.rs
         mod inner1 {
-            mod mod1 {}
             pub use bar::*;
+
+            mod mod1 {}
             // private
             mod bar { pub fn bar_func() {} }
         }
@@ -1243,6 +1244,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         mod mod2 {
             pub mod inner1 {
                 pub use inner2::*;
+
                 mod inner2 { pub fn bar2() {} }
                 pub fn bar1() {}
             }
@@ -1706,6 +1708,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
 
             pub mod inner1 {
                 pub use inner2::*;
+
                 mod inner2 { pub fn foo3() {} }
                 pub fn foo2() {}
             }
@@ -1920,6 +1923,7 @@ class RsMoveTopLevelItemsTest : RsMoveTopLevelItemsTestBase() {
         mod usage {
             use crate::mod2::foo1;
             use crate::mod2::Foo2;
+
             fn test() {
                 foo1();
                 let _ = Foo2 {};

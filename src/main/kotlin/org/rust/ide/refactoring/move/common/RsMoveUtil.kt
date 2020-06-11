@@ -17,15 +17,15 @@ import org.rust.lang.core.macros.setContext
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 
-sealed class RsMoveUsage(open val element: RsElement) : UsageInfo(element)
+sealed class RsMoveUsageInfo(open val element: RsElement) : UsageInfo(element)
 
-class RsModDeclUsage(override val element: RsModDeclItem, val file: RsFile) : RsMoveUsage(element)
+class RsModDeclUsageInfo(override val element: RsModDeclItem, val file: RsFile) : RsMoveUsageInfo(element)
 
-class RsPathUsage(
+class RsPathUsageInfo(
     override val element: RsPath,
     private val rsReference: PsiReference,
     val target: RsQualifiedNamedElement
-) : RsMoveUsage(element) {
+) : RsMoveUsageInfo(element) {
     lateinit var referenceInfo: RsMoveReferenceInfo
 
     override fun getReference(): PsiReference = rsReference

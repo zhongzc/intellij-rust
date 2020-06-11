@@ -24,8 +24,6 @@ import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.annotator.fixes.MakePublicFix
 import org.rust.ide.inspections.import.RsImportHelper
-import org.rust.ide.inspections.import.insertUseItem
-import org.rust.ide.refactoring.RsImportOptimizer
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 import org.rust.openapiext.computeWithCancelableProgress
@@ -43,8 +41,9 @@ class ItemToMove(val item: RsItemElement) : ElementToMove()
 class ModToMove(val mod: RsMod) : ElementToMove()
 
 /**
- * Move refactoring supports moving files or top level items
- * It consists of these steps:
+ * Move refactoring supports moving files (to other directory) or top level items (to other file)
+ *
+ * ## High-level description
  * 1. Check conflicts (if new mod already has item with same name)
  * 2. Check visibility conflicts (target of any reference should remain accessible after move).
  *    We should check: `RsPath`, struct/enum field (struct literal, destructuring), struct/trait method call.
@@ -65,6 +64,21 @@ class ModToMove(val mod: RsMod) : ElementToMove()
  *     - change existing imports
  *         - remove import if it is in new mod
  *     - fix unresolved paths (including trait methods)
+ *
+ * ## Implementation notes
+ * Most important class is [RsMoveReferenceInfo].
+ * It is used both for inside and outside references and for each `RsPath` provides new path to replace old path with
+ *
+ * "Move file" and "Move items" has different processors (because of different UX),
+ * So this class is created to be used by both processors.
+ * It provides following methods:
+ * 1. [findUsages] — just finds usages and convert them to our class [RsMoveUsageInfo]
+ * 2. [preprocessUsages]
+ *     - creates [RsMoveReferenceInfo] for all references
+ *     - checks visibility conflicts
+ * 3. [performRefactoring]
+ *     - moves items/files
+ *     - updates references using [RsMoveRetargetReferencesProcessor]
  */
 class RsMoveCommonProcessor(
     private val project: Project,
@@ -90,17 +104,14 @@ class RsMoveCommonProcessor(
     private val pathHelper: RsMovePathHelper = RsMovePathHelper(project, targetMod)
     private lateinit var conflictsDetector: RsMoveConflictsDetector
     private val traitMethodsProcessor: RsMoveTraitMethodsProcessor =
-        RsMoveTraitMethodsProcessor(sourceMod, targetMod, pathHelper, this::addImport)
-
-    private val useSpecksToOptimize: MutableList<RsUseSpeck> = mutableListOf()
-    private val filesToOptimizeImports: MutableSet<RsFile> = mutableSetOf()
+        RsMoveTraitMethodsProcessor(psiFactory, sourceMod, targetMod, pathHelper)
 
     init {
         if (elementsToMove.isEmpty()) throw IncorrectOperationException("No items to move")
         if (targetMod == sourceMod) throw IncorrectOperationException("Source and destination modules should be different")
     }
 
-    fun findUsages(): Array<UsageInfo> {
+    fun findUsages(): Array<RsMoveUsageInfo> {
         return elementsToMove
             .map {
                 when (it) {
@@ -116,14 +127,14 @@ class RsMoveCommonProcessor(
             .toTypedArray()
     }
 
-    private fun createMoveUsageInfo(reference: PsiReference): RsMoveUsage? {
+    private fun createMoveUsageInfo(reference: PsiReference): RsMoveUsageInfo? {
         // TODO: text usages
         val element = reference.element
         val target = reference.resolve() ?: return null
 
         return when {
-            element is RsModDeclItem && target is RsFile -> RsModDeclUsage(element, target)
-            element is RsPath && target is RsQualifiedNamedElement -> RsPathUsage(element, reference, target)
+            element is RsModDeclItem && target is RsFile -> RsModDeclUsageInfo(element, target)
+            element is RsPath && target is RsQualifiedNamedElement -> RsPathUsageInfo(element, reference, target)
             else -> null
         }
     }
@@ -247,7 +258,7 @@ class RsMoveCommonProcessor(
     }
 
     private fun preprocessInsideReferences(usages: Array<UsageInfo>): List<RsMoveReferenceInfo> {
-        val pathUsages = usages.filterIsInstance<RsPathUsage>()
+        val pathUsages = usages.filterIsInstance<RsPathUsageInfo>()
         for (usage in pathUsages) {
             usage.referenceInfo = createInsideReferenceInfo(usage.element, usage.target)
         }
@@ -334,17 +345,18 @@ class RsMoveCommonProcessor(
 
         this.elementsToMove = moveElements()
 
-        updateOutsideReferences()
+        val retargetReferencesProcessor = RsMoveRetargetReferencesProcessor(project, sourceMod, targetMod)
+        updateOutsideReferences(retargetReferencesProcessor)
 
         traitMethodsProcessor.addTraitImportsForOutsideReferences(elementsToMove)
         traitMethodsProcessor.addTraitImportsForInsideReferences()
 
         val insideReferences = usages
-            .filterIsInstance<RsPathUsage>()
+            .filterIsInstance<RsPathUsageInfo>()
             .map { it.referenceInfo }
         updateInsideReferenceInfosIfNeeded(insideReferences)
-        retargetReferences(insideReferences)
-        optimizeImports()
+        retargetReferencesProcessor.retargetReferences(insideReferences)
+        retargetReferencesProcessor.optimizeImports()
     }
 
     private fun updateOutsideReferencesInVisRestrictions() {
@@ -353,7 +365,7 @@ class RsMoveCommonProcessor(
         }
     }
 
-    private fun updateOutsideReferences() {
+    private fun updateOutsideReferences(retargetReferencesProcessor: RsMoveRetargetReferencesProcessor) {
         val outsideReferences = movedElementsDeepDescendantsOfType<RsElement>(elementsToMove)
             .mapNotNull { pathOldOriginal ->
                 val reference = pathOldOriginal.getCopyableUserData(RS_PATH_WRAPPER_KEY) ?: return@mapNotNull null
@@ -363,7 +375,7 @@ class RsMoveCommonProcessor(
                 reference.pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
                 reference
             }
-        retargetReferences(outsideReferences.toList())
+        retargetReferencesProcessor.retargetReferences(outsideReferences.toList())
     }
 
     // after move old items are invalidates and new items (`PsiElement`s) are created
@@ -389,244 +401,6 @@ class RsMoveCommonProcessor(
             }
             reference.target = targetMapping[reference.target] ?: reference.target
         }
-    }
-
-    // todo extract to separate file/class all functions related to retargetReferences ?
-    private fun retargetReferences(referencesAll: List<RsMoveReferenceInfo>) {
-        val (referencesDirectly, referencesOther) = referencesAll
-            .partition { it.isInsideUseDirective || it.forceReplaceDirectly }
-
-        for (reference in referencesDirectly) {
-            retargetReferenceDirectly(reference)
-        }
-        for (reference in referencesOther) {
-            val pathOld = reference.pathOld
-            if (pathOld.resolvesToAndAccessible(reference.target)) continue
-            val success = !pathOld.isAbsolute() && tryRetargetReferenceKeepExistingStyle(reference)
-            if (!success) {
-                retargetReferenceDirectly(reference)
-            }
-        }
-    }
-
-    private fun retargetReferenceDirectly(reference: RsMoveReferenceInfo) {
-        val pathNew = reference.pathNew ?: return
-        replacePathOld(reference, pathNew)
-    }
-
-    // "keep existing style" means that
-    // - if `pathOld` is `foo` then we keep it and add import for `foo`
-    // - if `pathOld` is `mod1::foo`, then we change it to `mod2::foo` and add import for `mod2`
-    // - etc for `outer1::mod1::foo`
-    private fun tryRetargetReferenceKeepExistingStyle(reference: RsMoveReferenceInfo): Boolean {
-        val pathOld = reference.pathOld
-        val pathNew = reference.pathNew ?: return false
-
-        val pathOldSegments = pathOld.text.split("::")
-        val pathNewSegments = pathNew.text.split("::")
-        if (pathOldSegments.size >= pathNewSegments.size && !pathOld.startsWithSuper()) return false
-
-        val pathNewShortNumberSegments = adjustPathNewNumberSegments(reference, pathOldSegments.size)
-        return doRetargetReferenceKeepExistingStyle(reference, pathNewSegments, pathNewShortNumberSegments)
-    }
-
-    private fun doRetargetReferenceKeepExistingStyle(
-        reference: RsMoveReferenceInfo,
-        pathNewSegments: List<String>,
-        pathNewShortNumberSegments: Int
-    ): Boolean {
-        val pathNewShortText = pathNewSegments
-            .takeLast(pathNewShortNumberSegments)
-            .joinToString("::")
-        val usePath = pathNewSegments
-            .take(pathNewSegments.size - pathNewShortNumberSegments + 1)
-            .joinToString("::")
-
-        val containingMod = reference.pathOldOriginal.containingMod
-        val pathNewShort = pathNewShortText.toRsPath(codeFragmentFactory, containingMod)
-            ?: return false
-        val containingModHasSameNameInScope = pathNewShortNumberSegments == 1
-            && pathNewShort.reference?.resolve().let { it != null && it != reference.target }
-        if (containingModHasSameNameInScope) {
-            return doRetargetReferenceKeepExistingStyle(
-                reference,
-                pathNewSegments,
-                pathNewShortNumberSegments + 1
-            )
-        }
-
-        addImport(reference.pathOldOriginal, usePath)
-        replacePathOld(reference, pathNewShort)
-        return true
-    }
-
-    // if `target` is struct/enum/... then we add import for this item
-    // if `target` is function then we add import for its `containingMod`
-    // https://doc.rust-lang.org/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html#creating-idiomatic-use-paths
-    private fun adjustPathNewNumberSegments(reference: RsMoveReferenceInfo, numberSegments: Int): Int {
-        val pathOldOriginal = reference.pathOldOriginal
-        val target = reference.target
-
-        // it is unclear how to replace relative reference starting with `super::` to keep its style
-        // so lets always add full import for such references
-        if (reference.pathOld.startsWithSuper()) {
-            return if (target is RsFunction) 2 else 1
-        }
-
-        if (numberSegments != 1 || target !is RsFunction) return numberSegments
-        val isReferenceBetweenElementsInSourceMod =
-            // from item in source mod to moved item
-            pathOldOriginal.containingMod == sourceMod && target.containingMod == targetMod
-                // from moved item to item in source mod
-                || pathOldOriginal.containingMod == targetMod && target.containingMod == sourceMod
-        return if (isReferenceBetweenElementsInSourceMod) 2 else numberSegments
-    }
-
-    private fun replacePathOld(reference: RsMoveReferenceInfo, pathNew: RsPath) {
-        val pathOld = reference.pathOld
-        val pathOldOriginal = reference.pathOldOriginal
-
-        if (pathOldOriginal !is RsPath) {
-            replacePathOldInPatIdent(pathOldOriginal as RsPatIdent, pathNew)
-            return
-        }
-
-        if (tryReplacePathOldInUseGroup(pathOldOriginal, pathNew)) return
-
-        if (pathOld.text == pathNew.text) return
-        if (pathOld != pathOldOriginal) run {
-            if (!pathOldOriginal.text.startsWith(pathOld.text)) {
-                LOG.error("Expected '${pathOldOriginal.text}' to starts with '${pathOld.text}'")
-                return@run
-            }
-            if (replacePathOldWithTypeArguments(pathOldOriginal, pathNew.text)) return
-        }
-
-        // when moving `fn foo() { use crate::mod2::bar; ... }` to `mod2`, we can just delete this import
-        if (pathOld.parent is RsUseSpeck && pathOld.parent.parent is RsUseItem && !pathNew.hasColonColon) {
-            pathOld.parent.parent.delete()
-            return
-        }
-        pathOldOriginal.replace(pathNew)
-    }
-
-    private fun replacePathOldInPatIdent(pathOldOriginal: RsPatIdent, pathNew: RsPath) {
-        if (pathNew.coloncolon != null) {
-            LOG.error("Expected paths in patIdent to be one-segment, got: '${pathNew.text}'")
-            return
-        }
-        val patBindingNew = psiFactory.createIdentifier(pathNew.text)
-        pathOldOriginal.patBinding.identifier.replace(patBindingNew)
-    }
-
-    private fun replacePathOldWithTypeArguments(pathOldOriginal: RsPath, pathNewText: String): Boolean {
-        // `mod1::func::<T>`
-        //  ^~~~~~~~~^ pathOld - replace by pathNewText
-        //  ^~~~~~~~~~~~~~^ pathOldOriginal
-        // we should accurately replace `pathOld`, so that all `PsiElement`s related to `T` remain valid
-        // because T can contains `RsPath`s which also should be replaced later
-
-        fun RsPath.getIdentifierActual(): PsiElement = listOfNotNull(identifier, self, `super`, cself, crate).single()
-
-        with(pathOldOriginal) {
-            check(typeArgumentList != null)
-            path?.delete()
-            coloncolon?.delete()
-            getIdentifierActual().delete()
-            check(typeArgumentList != null)
-        }
-
-        val pathNew = pathNewText.toRsPath(psiFactory) ?: return false
-        val elements = listOfNotNull(pathNew.path, pathNew.coloncolon, pathNew.getIdentifierActual())
-        for (element in elements.asReversed()) {
-            pathOldOriginal.addAfter(element, null)
-        }
-        check(pathOldOriginal.text.startsWith(pathNewText))
-        return true
-    }
-
-    // consider we move `foo1` and `foo2` from `mod1` to `mod2`
-    // this methods replaces `use mod1::{foo1, foo2}` to `use mod2::{foo1, foo2}`
-    //
-    // TODO: improve for complex use groups, e.g.:
-    //  `use mod1::{foo1, foo2::{inner1, inner2}}` (currently we create two imports)
-    private fun tryReplacePathOldInUseGroup(pathOld: RsPath, pathNew: RsPath): Boolean {
-        val useSpeck = pathOld.parentOfType<RsUseSpeck>() ?: return false
-        val useGroup = useSpeck.parent as? RsUseGroup ?: return false
-        val useItem = useGroup.parentOfType<RsUseItem>() ?: return false
-
-        // Before:
-        //   `use prefix::{mod1::foo::inner::{inner1, inner2}, other1, other2};`
-        //                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^ useGroup
-        //                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^ useSpeck
-        //                 ^~~~~~~~^ pathOld
-        // After:
-        //   `use prefix::{other1, other2};`
-        //   `use prefix::mod1::foo::inner::{inner1, inner2};`
-        pathOld.replace(pathNew)
-        val useSpeckText = useSpeck.text
-        // deletion should be before `insertUseItem`, otherwise `useSpeck` may be invalidated
-        deleteUseSpeckInUseGroup(useSpeck)
-        if (useSpeckText.contains("::")) {
-            insertUseItemAndCopyAttributes(useSpeckText, useItem)
-        }
-
-        // TODO: group paths by RsUseItem and handle together ?
-        // consider pathOld == `foo1` in `use mod1::{foo1, foo2};`
-        // we just removed `foo1` from old use group and added new import: `use mod1::{foo2}; use mod2::foo1;`
-        // we can't optimize use speck right now,
-        // because otherwise `use mod1::{foo2};` becomes `use mod1::foo2;` which destroys`foo2` reference
-        useSpecksToOptimize += useGroup.parentUseSpeck
-        return true
-    }
-
-    private fun insertUseItemAndCopyAttributes(useSpeckText: String, existingUseItem: RsUseItem) {
-        val containingMod = existingUseItem.containingMod
-        if (existingUseItem.outerAttrList.isEmpty() && existingUseItem.vis == null) {
-            containingMod.insertUseItem(psiFactory, useSpeckText)
-        } else {
-            val useItem = existingUseItem.copy() as RsUseItem
-            val useSpeck = psiFactory.createUseSpeck(useSpeckText)
-            useItem.useSpeck!!.replace(useSpeck)
-            containingMod.addAfter(useItem, existingUseItem)
-        }
-        filesToOptimizeImports.add(containingMod.containingFile as RsFile)
-    }
-
-    fun addImport(context: RsElement, usePath: String) {
-        addImport(psiFactory, context, usePath)
-        filesToOptimizeImports.add(context.containingFile as RsFile)
-    }
-
-    private fun optimizeImports() {
-        useSpecksToOptimize.forEach { optimizeUseSpeck(it) }
-
-        filesToOptimizeImports.addAll(useSpecksToOptimize.mapNotNull { it.containingFile as? RsFile })
-        filesToOptimizeImports.forEach { RsImportOptimizer().executeForUseItem(it) }
-    }
-
-    private fun optimizeUseSpeck(useSpeck: RsUseSpeck) {
-        RsImportOptimizer.optimizeUseSpeck(psiFactory, useSpeck)
-
-        // TODO: move to RsImportOptimizer
-        val useSpeckList = useSpeck.useGroup?.useSpeckList ?: return
-        if (useSpeckList.isEmpty()) {
-            when (val parent = useSpeck.parent) {
-                is RsUseItem -> parent.delete()
-                is RsUseGroup -> deleteUseSpeckInUseGroup(useSpeck)
-                else -> LOG.error("Unexpected parent of useSpeck: $parent")
-            }
-        } else {
-            useSpeckList.forEach { optimizeUseSpeck(it) }
-        }
-    }
-
-    private fun deleteUseSpeckInUseGroup(useSpeck: RsUseSpeck) {
-        check(useSpeck.parent is RsUseGroup)
-        val nextComma = useSpeck.nextSibling.takeIf { it.elementType == RsElementTypes.COMMA }
-        val prevComma = useSpeck.prevSibling.takeIf { it.elementType == RsElementTypes.COMMA }
-        (nextComma ?: prevComma)?.delete()
-        useSpeck.delete()
     }
 
     fun updateMovedItemVisibility(item: RsItemElement) {

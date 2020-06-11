@@ -38,7 +38,7 @@ class RsMoveTopLevelItemsProcessor(
         RsMoveCommonProcessor(project, elementsToMove, targetMod)
     }
 
-    override fun findUsages(): Array<UsageInfo> {
+    override fun findUsages(): Array<out UsageInfo> {
         if (!searchForReferences) return UsageInfo.EMPTY_ARRAY
         return commonProcessor.findUsages()
     }

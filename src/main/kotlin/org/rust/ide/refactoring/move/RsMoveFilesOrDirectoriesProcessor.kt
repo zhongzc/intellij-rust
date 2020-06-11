@@ -16,7 +16,7 @@ import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.inspections.import.lastElement
 import org.rust.ide.refactoring.move.common.ModToMove
-import org.rust.ide.refactoring.move.common.RsModDeclUsage
+import org.rust.ide.refactoring.move.common.RsModDeclUsageInfo
 import org.rust.ide.refactoring.move.common.RsMoveCommonProcessor
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
@@ -71,7 +71,7 @@ class RsMoveFilesOrDirectoriesProcessor(
 
     private fun checkSingleModDeclaration(usages: Array<UsageInfo>) {
         val modDeclarationsByFile = usages
-            .filterIsInstance<RsModDeclUsage>()
+            .filterIsInstance<RsModDeclUsageInfo>()
             .groupBy { it.file }
         for (file in filesToMove) {
             val modDeclarations = modDeclarationsByFile[file]
@@ -83,7 +83,7 @@ class RsMoveFilesOrDirectoriesProcessor(
     }
 
     override fun performRefactoring(usages: Array<out UsageInfo>) {
-        val oldModDeclarations = usages.filterIsInstance<RsModDeclUsage>()
+        val oldModDeclarations = usages.filterIsInstance<RsModDeclUsageInfo>()
         commonProcessor.performRefactoring(usages) {
             moveFilesAndModDeclarations(oldModDeclarations)
             // after move `RsFile`s remain valid
@@ -92,7 +92,7 @@ class RsMoveFilesOrDirectoriesProcessor(
         moveCallback?.refactoringCompleted()
     }
 
-    private fun moveFilesAndModDeclarations(oldModDeclarations: List<RsModDeclUsage>) {
+    private fun moveFilesAndModDeclarations(oldModDeclarations: List<RsModDeclUsageInfo>) {
         moveModDeclaration(oldModDeclarations)
         super.performRefactoring(emptyArray())
 
@@ -102,7 +102,7 @@ class RsMoveFilesOrDirectoriesProcessor(
         }
     }
 
-    private fun moveModDeclaration(oldModDeclarationsAll: List<RsModDeclUsage>) {
+    private fun moveModDeclaration(oldModDeclarationsAll: List<RsModDeclUsageInfo>) {
         val psiFactory = RsPsiFactory(project)
         for ((_ /* file */, oldModDeclarations) in oldModDeclarationsAll.groupBy { it.file }) {
             val oldModDeclaration = oldModDeclarations.single().element
