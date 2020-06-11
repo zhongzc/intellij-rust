@@ -324,13 +324,13 @@ class RsMoveCommonProcessor(
             return null
         }
 
-        check(pathOld.containingFile !is DummyHolder)
+        if (pathOld.containingFile is DummyHolder) LOG.error("Path '${pathOld.text}' is inside dummy holder")
         val target = pathOld.reference?.resolve() as? RsQualifiedNamedElement ?: return null
 
         fun convertPathToFull(path: RsPath): RsPath? {
             val pathFullText = pathOld.text.replaceFirst(reference.pathOld.text, path.text)
             val pathFull = pathFullText.toRsPath(codeFragmentFactory, path) ?: return null
-            check(pathFull.containingFile !is DummyHolder)
+            if (pathFull.containingFile is DummyHolder) LOG.error("Path '${pathFull.text}' is inside dummy holder")
             return pathFull
         }
 

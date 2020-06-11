@@ -84,7 +84,7 @@ fun RsPath.isAbsolute(): Boolean {
     if (text.startsWith("::")) return true
     if (startsWithSuper()) return false
 
-    check(containingFile !is DummyHolder)
+    if (containingFile is DummyHolder) LOG.error("Path '$text' is inside dummy holder")
     val basePathTarget = basePath().reference?.resolve() as? RsMod ?: return false
     return basePathTarget.isCrateRoot
 }
@@ -144,8 +144,8 @@ fun RsPath.removeTypeArguments(codeFragmentFactory: RsCodeFragmentFactory): RsPa
 fun RsPath?.resolvesToAndAccessible(target: RsQualifiedNamedElement): Boolean {
     if (this == null) return false
     if (isInsideMetaItem(target)) return false
-    check(containingFile !is DummyHolder)
-    check(target.containingFile !is DummyHolder)
+    if (containingFile is DummyHolder) LOG.error("Path '$text' is inside dummy holder")
+    if (target.containingFile is DummyHolder) LOG.error("Target $target of path '$text' is inside dummy holder")
     val reference = reference ?: return false
     if (!reference.isReferenceTo(target)) return false
 

@@ -175,7 +175,9 @@ class RsMoveRetargetReferencesProcessor(
         for (element in elements.asReversed()) {
             pathOldOriginal.addAfter(element, null)
         }
-        check(pathOldOriginal.text.startsWith(pathNewText))
+        if (!pathOldOriginal.text.startsWith(pathNewText)) {
+            LOG.error("Expected '${pathOldOriginal.text}' to starts with '${pathNewText}'")
+        }
         return true
     }
 
