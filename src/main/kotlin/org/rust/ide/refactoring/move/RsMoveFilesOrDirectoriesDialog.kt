@@ -21,6 +21,7 @@ import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectori
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesUtil
 import com.intellij.refactoring.util.CommonRefactoringUtil
+import com.intellij.util.IncorrectOperationException
 import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.cargo.project.workspace.PackageOrigin
 import org.rust.lang.RsConstants
@@ -37,6 +38,10 @@ class RsMoveFilesOrDirectoriesDialog(
     initialTargetDirectory: PsiDirectory?,
     private val moveCallback: MoveCallback?
 ) : MoveFilesOrDirectoriesDialog(project, filesOrDirectoriesToMove, initialTargetDirectory) {
+
+    init {
+        title = "Move (Rust)"
+    }
 
     override fun performMove(targetDirectory: PsiDirectory) {
         if (!CommonRefactoringUtil.checkReadOnlyStatus(project, targetDirectory)) return
@@ -55,7 +60,9 @@ class RsMoveFilesOrDirectoriesDialog(
 
             doPerformMove(targetDirectory, searchForReferences, doneCallback)
         } catch (e: Exception) {
-            Logger.getInstance(RsMoveFilesOrDirectoriesDialog::class.java).error(e)
+            if (e !is IncorrectOperationException) {
+                Logger.getInstance(RsMoveFilesOrDirectoriesDialog::class.java).error(e)
+            }
             val title = RefactoringBundle.message("error.title")
             CommonRefactoringUtil.showErrorMessage(title, e.message, "refactoring.moveFile", project)
         }

@@ -15,6 +15,7 @@ import com.intellij.refactoring.ui.RefactoringDialog
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.layout.panel
+import com.intellij.util.IncorrectOperationException
 import org.apache.commons.lang.StringEscapeUtils
 import org.rust.ide.docs.signature
 import org.rust.lang.core.psi.*
@@ -134,7 +135,9 @@ class RsMoveTopLevelItemsDialog(
             val processor = RsMoveTopLevelItemsProcessor(project, itemsToMove, targetMod, searchForReferences)
             invokeRefactoring(processor)
         } catch (e: Exception) {
-            Logger.getInstance(RsMoveTopLevelItemsDialog::class.java).error(e)
+            if (e !is IncorrectOperationException) {
+                Logger.getInstance(RsMoveTopLevelItemsDialog::class.java).error(e)
+            }
             CommonRefactoringUtil.showErrorMessage(message("error.title"), e.message, null, project)
         }
     }
