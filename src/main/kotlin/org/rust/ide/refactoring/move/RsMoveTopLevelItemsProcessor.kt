@@ -23,6 +23,7 @@ import org.rust.lang.core.psi.ext.RsMod
 import org.rust.lang.core.psi.ext.expandedItemsExceptImplsAndUses
 import org.rust.lang.core.psi.ext.startOffset
 
+// see overview of move refactoring in comment for `RsMoveCommonProcessor`
 class RsMoveTopLevelItemsProcessor(
     private val project: Project,
     private val itemsToMove: Set<RsItemElement>,
@@ -83,7 +84,7 @@ class RsMoveTopLevelItemsProcessor(
     }
 
     private fun moveItem(item: RsItemElement, psiFactory: RsPsiFactory): ElementToMove {
-        commonProcessor.updateMovedItemVisibility(item, item)
+        commonProcessor.updateMovedItemVisibility(item)
 
         if (targetMod.lastChildInner !is PsiWhiteSpace) {
             targetMod.addInner(psiFactory.createNewline())

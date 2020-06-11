@@ -21,18 +21,7 @@ import org.rust.ide.refactoring.move.common.RsMoveCommonProcessor
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 
-// todo move comment to common ?
-/**
- * Move refactoring currently supports moving a single file without submodules.
- * It consists of these steps:
- * - Check visibility conflicts (target of any reference should remain accessible after move)
- * - Update `pub(in path)` visibility modifiers in moved file if necessary
- * - Move mod-declaration to new parent mod
- * - Update relative paths in moved file
- * - Update necessary imports in other files
- * - Update necessary paths in other files (some usages could still remain invalid because of glob-imports)
- *     We replace path with absolute if there are few usages of this path in the file, otherwise add new import
- */
+// see overview of move refactoring in comment for `RsMoveCommonProcessor`
 class RsMoveFilesOrDirectoriesProcessor(
     private val project: Project,
     filesOrDirectoriesToMove: Array<out PsiElement /* PsiDirectory or RsFile */>,
@@ -115,9 +104,9 @@ class RsMoveFilesOrDirectoriesProcessor(
 
     private fun moveModDeclaration(oldModDeclarationsAll: List<RsModDeclUsage>) {
         val psiFactory = RsPsiFactory(project)
-        for ((file, oldModDeclarations) in oldModDeclarationsAll.groupBy { it.file }) {
+        for ((_ /* file */, oldModDeclarations) in oldModDeclarationsAll.groupBy { it.file }) {
             val oldModDeclaration = oldModDeclarations.single().element
-            commonProcessor.updateMovedItemVisibility(oldModDeclaration, file)
+            commonProcessor.updateMovedItemVisibility(oldModDeclaration)
             val newModDeclaration = oldModDeclaration.copy()
             oldModDeclaration.delete()
             targetMod.insertModDecl(psiFactory, newModDeclaration)

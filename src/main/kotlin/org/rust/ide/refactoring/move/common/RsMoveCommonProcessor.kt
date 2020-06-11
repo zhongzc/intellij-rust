@@ -6,6 +6,7 @@
 package org.rust.ide.refactoring.move.common
 
 import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
@@ -41,7 +42,30 @@ sealed class ElementToMove {
 class ItemToMove(val item: RsItemElement) : ElementToMove()
 class ModToMove(val mod: RsMod) : ElementToMove()
 
-// ? todo extract everything related to common to its directory `/common`?
+/**
+ * Move refactoring supports moving files or top level items
+ * It consists of these steps:
+ * 1. Check conflicts (if new mod already has item with same name)
+ * 2. Check visibility conflicts (target of any reference should remain accessible after move).
+ *    We should check: `RsPath`, struct/enum field (struct literal, destructuring), struct/trait method call.
+ *     - references from moved items (both to old mod and to other mods)
+ *     - references to moved items (both from old mod and from other mods)
+ * 3. Update `pub(in path)` visibility modifiers for moved items if necessary
+ * 4. Move items to new mod
+ *     - make moved items public if necessary
+ *     - also make public items in old mod if necessary (TODO)
+ * 5. Fix references from moved items (both to old mod and to other mods)
+ *     - replace relative paths (which starts with `super::`)
+ *     - add necessary imports (including trait imports - for trait methods)
+ *         - usual imports (which already are in old mod)
+ *         - imports to items in old mod (which are used by moved items)
+ *     - replace paths which are still not resolved - e.g. previously path is absolute,
+ *       but after move we should use path through reexports)
+ * 6. Fix references to moved items (both from old mod and from other mods)
+ *     - change existing imports
+ *         - remove import if it is in new mod
+ *     - fix unresolved paths (including trait methods)
+ */
 class RsMoveCommonProcessor(
     private val project: Project,
     private var elementsToMove: List<ElementToMove>,
@@ -93,7 +117,7 @@ class RsMoveCommonProcessor(
     }
 
     private fun createMoveUsageInfo(reference: PsiReference): RsMoveUsage? {
-        // todo text usages
+        // TODO: text usages
         val element = reference.element
         val target = reference.resolve() ?: return null
 
@@ -105,19 +129,16 @@ class RsMoveCommonProcessor(
     }
 
     fun preprocessUsages(usages: Array<UsageInfo>, conflicts: MultiMap<PsiElement, String>): Boolean {
-        // todo maybe add usages which needs adding element to list
-        //  then insert new element without progress at all, and again search for usages
-
         val title = message("refactoring.preprocess.usages.progress")
         try {
             // we need to use `computeWithCancelableProgress` and not `runWithCancelableProgress`
             // because otherwise any exceptions will be silently ignored
             project.computeWithCancelableProgress(title) {
                 runReadAction {
-                    // todo three threads:
-                    // - collectOutsideReferences + conflicts
-                    // - preprocessInsideReferences + conflicts
-                    // - checkImpls   ? +preprocess*TraitMethods
+                    // TODO three threads:
+                    //  - collectOutsideReferences + conflicts
+                    //  - preprocessInsideReferences + conflicts
+                    //  - checkImpls   ? +preprocess*TraitMethods
                     val outsideReferences = collectOutsideReferences()
                     val insideReferences = preprocessInsideReferences(usages)
                     traitMethodsProcessor.preprocessOutsideReferencesToTraitMethods(conflicts, elementsToMove)
@@ -161,7 +182,7 @@ class RsMoveCommonProcessor(
             if (macroCall != null && macroCall.path.isAncestorOf(path)) continue
 
             // `use path1::{path2, path3}`
-            //              ~~~~~  ~~~~~ todo don't ignore such paths
+            //              ~~~~~  ~~~~~ TODO: don't ignore such paths
             if (path.parentOfType<RsUseGroup>() != null) continue
 
             val target = path.reference?.resolve() as? RsQualifiedNamedElement ?: continue
@@ -214,7 +235,6 @@ class RsMoveCommonProcessor(
             if (pathNew.resolvesToAndAccessible(target)) return null  // not needed to change path
         }
 
-        // todo ? extract function findOutsideReferencePathNew(..): Pair<RsPath, RsPath>
         val pathNewFallback = if (path.containingMod == sourceMod) {
             // after move `path` will belong to `targetMod`
             target.qualifiedNameRelativeTo(targetMod)?.toRsPath(codeFragmentFactory, targetMod)
@@ -241,7 +261,7 @@ class RsMoveCommonProcessor(
 
             val pathOldOriginal = usage.referenceInfo.pathOldOriginal
             if (pathOldOriginal.isInsideMovedElements(elementsToMove)) {
-                // todo cleanup if refactoring is cancelled ?
+                // TODO: cleanup if refactoring is cancelled ?
                 pathOldOriginal.putCopyableUserData(RS_PATH_BEFORE_MOVE_KEY, pathOldOriginal)
             }
         }
@@ -264,7 +284,7 @@ class RsMoveCommonProcessor(
 
         val pathNewAccessible = pathHelper.findPathAfterMove(path, target)
         val pathNewFallback = target.qualifiedNameRelativeTo(path.containingMod)
-            ?.toRsPath(codeFragmentFactory, path)
+            ?.toRsPath(codeFragmentFactory, context = path.context as? RsElement ?: path)
         return RsMoveReferenceInfo(path, pathOriginal, pathNewAccessible, pathNewFallback, target)
     }
 
@@ -288,7 +308,10 @@ class RsMoveCommonProcessor(
             .firstOrNull { isSimplePath(it) }
             ?: return null
         val pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
-        if (!pathOld.text.startsWith(reference.pathOld.text)) return null  // todo log error
+        if (!pathOld.text.startsWith(reference.pathOld.text)) {
+            LOG.error("Expected '${pathOld.text}' to starts with '${reference.pathOld.text}'")
+            return null
+        }
 
         check(pathOld.containingFile !is DummyHolder)
         val target = pathOld.reference?.resolve() as? RsQualifiedNamedElement ?: return null
@@ -307,10 +330,6 @@ class RsMoveCommonProcessor(
     }
 
     fun performRefactoring(usages: Array<out UsageInfo>, moveElements: () -> List<ElementToMove>) {
-        // todo what to do with other usages?
-        //  наверно нужно передать их в `super.performRefactoring`
-        //  но не работает для common
-
         updateOutsideReferencesInVisRestrictions()
 
         this.elementsToMove = moveElements()
@@ -320,7 +339,6 @@ class RsMoveCommonProcessor(
         traitMethodsProcessor.addTraitImportsForOutsideReferences(elementsToMove)
         traitMethodsProcessor.addTraitImportsForInsideReferences()
 
-        // todo filter self usages (especially when moving file with submodules)
         val insideReferences = usages
             .filterIsInstance<RsPathUsage>()
             .map { it.referenceInfo }
@@ -330,8 +348,6 @@ class RsMoveCommonProcessor(
     }
 
     private fun updateOutsideReferencesInVisRestrictions() {
-        // todo update after move ?
-        //  visRestriction.putCopyableUserData(_, visRestriction.path.reference?.resolve())
         for (visRestriction in movedElementsDeepDescendantsOfType<RsVisRestriction>(elementsToMove)) {
             visRestriction.updateScopeIfNecessary(psiFactory, targetMod)
         }
@@ -343,8 +359,6 @@ class RsMoveCommonProcessor(
                 val reference = pathOldOriginal.getCopyableUserData(RS_PATH_WRAPPER_KEY) ?: return@mapNotNull null
                 pathOldOriginal.putCopyableUserData(RS_PATH_WRAPPER_KEY, null)
                 // because after move new `RsElement`s are created
-                // todo make ReferenceInfo data class and use copy ?
-                //  or maybe not, зачем лишний раз аллоцировать
                 reference.pathOldOriginal = pathOldOriginal
                 reference.pathOld = convertFromPathOriginal(pathOldOriginal, codeFragmentFactory)
                 reference
@@ -352,7 +366,9 @@ class RsMoveCommonProcessor(
         retargetReferences(outsideReferences.toList())
     }
 
-    // todo comment
+    // after move old items are invalidates and new items (`PsiElement`s) are created
+    // thus we have to change `target` for inside references
+    // and change `pathOld` for self references
     private fun updateInsideReferenceInfosIfNeeded(references: List<RsMoveReferenceInfo>) {
         fun <T : RsElement> createMapping(key: Key<T>, aClass: Class<T>): Map<T, T> {
             return movedElementsShallowDescendantsOfType(elementsToMove, aClass)
@@ -393,7 +409,6 @@ class RsMoveCommonProcessor(
         }
     }
 
-    // todo inline ?
     private fun retargetReferenceDirectly(reference: RsMoveReferenceInfo) {
         val pathNew = reference.pathNew ?: return
         replacePathOld(reference, pathNew)
@@ -429,7 +444,7 @@ class RsMoveCommonProcessor(
 
         val containingMod = reference.pathOldOriginal.containingMod
         val pathNewShort = pathNewShortText.toRsPath(codeFragmentFactory, containingMod)
-            ?: return false  // todo log error
+            ?: return false
         val containingModHasSameNameInScope = pathNewShortNumberSegments == 1
             && pathNewShort.reference?.resolve().let { it != null && it != reference.target }
         if (containingModHasSameNameInScope) {
@@ -480,7 +495,10 @@ class RsMoveCommonProcessor(
 
         if (pathOld.text == pathNew.text) return
         if (pathOld != pathOldOriginal) run {
-            if (!pathOldOriginal.text.startsWith(pathOld.text)) return@run  // todo log error
+            if (!pathOldOriginal.text.startsWith(pathOld.text)) {
+                LOG.error("Expected '${pathOldOriginal.text}' to starts with '${pathOld.text}'")
+                return@run
+            }
             if (replacePathOldWithTypeArguments(pathOldOriginal, pathNew.text)) return
         }
 
@@ -493,7 +511,10 @@ class RsMoveCommonProcessor(
     }
 
     private fun replacePathOldInPatIdent(pathOldOriginal: RsPatIdent, pathNew: RsPath) {
-        if (pathNew.coloncolon != null) return  // todo log error
+        if (pathNew.coloncolon != null) {
+            LOG.error("Expected paths in patIdent to be one-segment, got: '${pathNew.text}'")
+            return
+        }
         val patBindingNew = psiFactory.createIdentifier(pathNew.text)
         pathOldOriginal.patBinding.identifier.replace(patBindingNew)
     }
@@ -527,7 +548,7 @@ class RsMoveCommonProcessor(
     // consider we move `foo1` and `foo2` from `mod1` to `mod2`
     // this methods replaces `use mod1::{foo1, foo2}` to `use mod2::{foo1, foo2}`
     //
-    // todo improve for complex use groups, e.g.:
+    // TODO: improve for complex use groups, e.g.:
     //  `use mod1::{foo1, foo2::{inner1, inner2}}` (currently we create two imports)
     private fun tryReplacePathOldInUseGroup(pathOld: RsPath, pathNew: RsPath): Boolean {
         val useSpeck = pathOld.parentOfType<RsUseSpeck>() ?: return false
@@ -550,7 +571,7 @@ class RsMoveCommonProcessor(
             insertUseItemAndCopyAttributes(useSpeckText, useItem)
         }
 
-        // todo group paths by RsUseItem and handle together ?
+        // TODO: group paths by RsUseItem and handle together ?
         // consider pathOld == `foo1` in `use mod1::{foo1, foo2};`
         // we just removed `foo1` from old use group and added new import: `use mod1::{foo2}; use mod2::foo1;`
         // we can't optimize use speck right now,
@@ -587,13 +608,13 @@ class RsMoveCommonProcessor(
     private fun optimizeUseSpeck(useSpeck: RsUseSpeck) {
         RsImportOptimizer.optimizeUseSpeck(psiFactory, useSpeck)
 
-        // todo move to RsImportOptimizer
+        // TODO: move to RsImportOptimizer
         val useSpeckList = useSpeck.useGroup?.useSpeckList ?: return
         if (useSpeckList.isEmpty()) {
             when (val parent = useSpeck.parent) {
                 is RsUseItem -> parent.delete()
                 is RsUseGroup -> deleteUseSpeckInUseGroup(useSpeck)
-                else -> error("todo")
+                else -> LOG.error("Unexpected parent of useSpeck: $parent")
             }
         } else {
             useSpeckList.forEach { optimizeUseSpeck(it) }
@@ -608,13 +629,16 @@ class RsMoveCommonProcessor(
         useSpeck.delete()
     }
 
-    fun updateMovedItemVisibility(item: RsItemElement, itemToCheckMakePublic /* todo remove? */: RsElement) {
+    fun updateMovedItemVisibility(item: RsItemElement) {
         when (item.visibility) {
             is RsVisibility.Private -> {
-                if (conflictsDetector.itemsToMakePublic.contains(itemToCheckMakePublic)) {
+                if (conflictsDetector.itemsToMakePublic.contains(item)) {
                     val itemName = item.name
                     val containingFile = item.containingFile
-                    if (item !is RsNameIdentifierOwner) return  // todo log error
+                    if (item !is RsNameIdentifierOwner) {
+                        LOG.error("Unexpected item to make public: $item")
+                        return
+                    }
                     MakePublicFix(item, itemName, withinOneCrate = false)
                         .invoke(project, null, containingFile)
                 }
@@ -635,3 +659,5 @@ class RsMoveCommonProcessor(
         private val RS_TARGET_BEFORE_MOVE_KEY: Key<RsQualifiedNamedElement> = Key.create("RS_TARGET_BEFORE_MOVE_KEY")
     }
 }
+
+val LOG = Logger.getInstance(RsMoveCommonProcessor::class.java)

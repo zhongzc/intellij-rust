@@ -34,14 +34,16 @@ class RsMoveConflictsDetector(
     fun detectInsideReferencesVisibilityProblems(insideReferences: List<RsMoveReferenceInfo>) {
         for (reference in insideReferences) {
             val pathOld = reference.pathOldOriginal
+            val target = reference.target
             if (reference.pathNewAccessible == null) {
-                addVisibilityConflict(conflicts, pathOld, reference.target)
+                addVisibilityConflict(conflicts, pathOld, target)
             }
 
             val usageMod = pathOld.containingMod
             val isSelfReference = pathOld.isInsideMovedElements(elementsToMove)
             if (!isSelfReference && !usageMod.superMods.contains(targetMod)) {
-                itemsToMakePublic.add(reference.target)
+                val itemToMakePublic = (target as? RsFile)?.declaration ?: target
+                itemsToMakePublic.add(itemToMakePublic)
             }
         }
 
@@ -140,7 +142,7 @@ class RsMoveConflictsDetector(
                     val isInsideSimplePath = element.parentsWithSelf
                         .takeWhile { it is RsPath }
                         .any { isSimplePath(it as RsPath) }
-                    if (!isInsideSimplePath && element.basePath().text != "self" /* todo */) {
+                    if (!isInsideSimplePath && !element.startsWithSelf()) {
                         // here we handle e.g. UFCS paths: `Struct1::method1`
                         checkVisibility(element)
                     }

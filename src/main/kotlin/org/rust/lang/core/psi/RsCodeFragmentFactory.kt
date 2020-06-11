@@ -56,15 +56,4 @@ class RsCodeFragmentFactory(val project: Project) {
         mod.setContext(context)
         return createPath(importingPathName, mod, mode, ns)
     }
-
-    fun createPathInEmptyTmpMod(
-        path: String,
-        context: RsMod,
-        mode: PathParsingMode = PathParsingMode.TYPE,
-        ns: Set<Namespace> = TYPES_N_VALUES
-    ): RsPath? {
-        val mod = psiFactory.createModItem("__tmp__", "")
-        mod.setContext(context)
-        return createPath(path, mod, mode, ns)
-    }
 }

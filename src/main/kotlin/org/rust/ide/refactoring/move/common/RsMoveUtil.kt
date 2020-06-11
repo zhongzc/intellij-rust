@@ -13,6 +13,7 @@ import com.intellij.psi.util.parentOfType
 import com.intellij.usageView.UsageInfo
 import org.rust.cargo.project.workspace.PackageOrigin
 import org.rust.ide.inspections.import.insertUseItem
+import org.rust.lang.core.macros.setContext
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 
@@ -61,15 +62,23 @@ class RsMoveReferenceInfo(
 }
 
 fun String.toRsPath(psiFactory: RsPsiFactory): RsPath? =
-    psiFactory.tryCreatePath(this)
+    psiFactory.tryCreatePath(this) ?: run {
+        LOG.error("Can't create RsPath from '$this'")
+        null
+    }
 
-// todo изменить `....toRsPath(codeFragmentFactory, path)`
-//            на `....toRsPath(codeFragmentFactory, path.context)`
 fun String.toRsPath(codeFragmentFactory: RsCodeFragmentFactory, context: RsElement): RsPath? =
-    codeFragmentFactory.createPath(this, context)
+    codeFragmentFactory.createPath(this, context) ?: run {
+        LOG.error("Can't create RsPath from '$this' in context $context")
+        null
+    }
 
-fun String.toRsPathInEmptyTmpMod(codeFragmentFactory: RsCodeFragmentFactory, context: RsMod): RsPath? =
-    codeFragmentFactory.createPathInEmptyTmpMod(this, context)
+fun String.toRsPathInEmptyTmpMod(codeFragmentFactory: RsCodeFragmentFactory, context: RsMod): RsPath? {
+    val psiFactory = RsPsiFactory(codeFragmentFactory.project)
+    val mod = psiFactory.createModItem("__tmp__", "")
+    mod.setContext(context)
+    return toRsPath(codeFragmentFactory, mod)
+}
 
 fun RsPath.isAbsolute(): Boolean {
     if (text.startsWith("::")) return true
@@ -82,10 +91,9 @@ fun RsPath.isAbsolute(): Boolean {
 
 fun RsPath.startsWithSuper(): Boolean = basePath().text == "super"
 
-fun RsPath.startsWithSelf(): Boolean {
-    val basePathText = basePath().text
-    return basePathText == "self" || basePathText == "Self"
-}
+fun RsPath.startsWithSelf(): Boolean = basePath().text == "self"
+
+fun RsPath.startsWithCSelf(): Boolean = basePath().text == "Self"
 
 // Path is simple if target of all subpaths is `RsMod`
 // (target of whole path could be `RsMod` or `RsItem`)
@@ -98,8 +106,8 @@ fun RsPath.startsWithSelf(): Boolean {
 // * `Vec::<i32>::new()`
 // * `Self::Item1`
 fun isSimplePath(path: RsPath): Boolean {
-    // todo don't ignore `self::`, only `Self::` ?
-    if (path.startsWithSelf()) return false
+    // TODO: don't ignore `self::`, only `Self::` ?
+    if (path.startsWithSelf() || path.startsWithCSelf()) return false
     val target = path.reference?.resolve() ?: return false
     if (target is RsMod && path.parent is RsPath) return false
 
@@ -130,7 +138,7 @@ fun RsPath.removeTypeArguments(codeFragmentFactory: RsCodeFragmentFactory): RsPa
     pathCopy.typeArgumentList?.delete()
 
     val context = context as? RsElement ?: this
-    return codeFragmentFactory.createPath(pathCopy.text, context) ?: /* todo log error */ this
+    return pathCopy.text.toRsPath(codeFragmentFactory, context) ?: this
 }
 
 fun RsPath?.resolvesToAndAccessible(target: RsQualifiedNamedElement): Boolean {
@@ -159,8 +167,7 @@ fun RsPath.isInsideMetaItem(target: RsQualifiedNamedElement): Boolean {
 }
 
 fun RsElement.isInsideMovedElements(elementsToMove: List<ElementToMove>): Boolean {
-    // todo just log error
-    check(containingFile !is RsCodeFragment)
+    if (containingFile is RsCodeFragment) LOG.error("Unexpected containingFile: $containingFile")
     return elementsToMove.any {
         when (it) {
             is ItemToMove -> PsiTreeUtil.isAncestor(it.item, this, false)
@@ -211,7 +218,7 @@ fun <T : RsElement> movedElementsDeepDescendantsOfType(elementsToMove: List<Elem
 // so we replace `path` with common parent module of `newParent` and old `path`
 fun RsVisRestriction.updateScopeIfNecessary(psiFactory: RsPsiFactory, newParent: RsMod) {
     if (crateRoot == newParent.crateRoot) {
-        // todo pass `oldScope` as parameter?
+        // TODO: pass `oldScope` as parameter?
         val oldScope = path.reference?.resolve() as? RsMod ?: return
         val newScope = commonParentMod(oldScope, newParent) ?: return
         val newScopePath = newScope.crateRelativePath ?: return
@@ -220,12 +227,12 @@ fun RsVisRestriction.updateScopeIfNecessary(psiFactory: RsPsiFactory, newParent:
     } else {
         // RsVisibility has text `pub(in path)`
         // after removing RsVisRestriction it will be changed to `pub`
-        // todo add test
+        // TODO: add test
         delete()
     }
 }
 
-// todo добавить тест когда context.containingMod == targetMod
+// TODO: добавить тест когда context.containingMod == targetMod
 fun addImport(psiFactory: RsPsiFactory, context: RsElement, usePath: String) {
     if (!usePath.contains("::")) return
     val blockScope = context.ancestors.find { it is RsBlock && it.childOfType<RsUseItem>() != null } as RsBlock?

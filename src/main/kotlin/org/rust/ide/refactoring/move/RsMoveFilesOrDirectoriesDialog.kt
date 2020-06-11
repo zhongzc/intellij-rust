@@ -35,7 +35,7 @@ class RsMoveFilesOrDirectoriesDialog(
     private val filesOrDirectoriesToMove: Array<out PsiElement /* PsiDirectory or RsFile */>,
     initialTargetDirectory: PsiDirectory?,
     private val moveCallback: MoveCallback?
-) : MoveFilesOrDirectoriesDialog(project, /* todo */ filesOrDirectoriesToMove, initialTargetDirectory) {
+) : MoveFilesOrDirectoriesDialog(project, filesOrDirectoriesToMove, initialTargetDirectory) {
 
     override fun performMove(targetDirectory: PsiDirectory) {
         if (!CommonRefactoringUtil.checkReadOnlyStatus(project, targetDirectory)) return
