@@ -3,7 +3,7 @@
  * found in the LICENSE file.
  */
 
-package org.rust.ide.refactoring.move
+package org.rust.ide.refactoring.move.common
 
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.GlobalSearchScope

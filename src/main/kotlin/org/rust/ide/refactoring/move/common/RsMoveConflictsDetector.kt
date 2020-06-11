@@ -3,7 +3,7 @@
  * found in the LICENSE file.
  */
 
-package org.rust.ide.refactoring.move
+package org.rust.ide.refactoring.move.common
 
 import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
@@ -11,6 +11,7 @@ import com.intellij.psi.util.parentsWithSelf
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.refactoring.util.RefactoringUIUtil
 import com.intellij.util.containers.MultiMap
+import org.rust.ide.refactoring.move.addInner
 import org.rust.ide.utils.getTopmostParentInside
 import org.rust.lang.core.macros.setContext
 import org.rust.lang.core.psi.*

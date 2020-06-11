@@ -3,7 +3,7 @@
  * found in the LICENSE file.
  */
 
-package org.rust.ide.refactoring.move
+package org.rust.ide.refactoring.move.common
 
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -346,7 +346,8 @@ class RsMoveCommonProcessor(
 
             val traitUsePath = findTraitUsePath(trait)
             if (traitUsePath == null) {
-                addVisibilityConflict(conflicts, methodCall, method.superItem ?: trait)
+                addVisibilityConflict(conflicts, methodCall, method.superItem
+                    ?: trait)
             } else {
                 methodCall.putCopyableUserData(RS_METHOD_CALL_TRAIT_USE_PATH, Pair(trait, traitUsePath))
             }

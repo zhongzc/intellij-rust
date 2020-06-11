@@ -3,7 +3,7 @@
  * found in the LICENSE file.
  */
 
-package org.rust.ide.refactoring.move
+package org.rust.ide.refactoring.move.common
 
 import com.intellij.psi.PsiReference
 import com.intellij.psi.impl.source.DummyHolder

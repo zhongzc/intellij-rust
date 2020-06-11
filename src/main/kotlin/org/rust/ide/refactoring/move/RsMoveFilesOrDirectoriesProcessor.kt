@@ -15,6 +15,9 @@ import com.intellij.usageView.UsageInfo
 import com.intellij.util.IncorrectOperationException
 import com.intellij.util.containers.MultiMap
 import org.rust.ide.inspections.import.lastElement
+import org.rust.ide.refactoring.move.common.ModToMove
+import org.rust.ide.refactoring.move.common.RsModDeclUsage
+import org.rust.ide.refactoring.move.common.RsMoveCommonProcessor
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 
