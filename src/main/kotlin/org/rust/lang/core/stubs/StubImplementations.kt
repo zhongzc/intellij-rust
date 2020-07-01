@@ -20,6 +20,7 @@ import com.intellij.psi.tree.*
 import com.intellij.util.BitUtil
 import com.intellij.util.CharTable
 import com.intellij.util.diff.FlyweightCapableTreeStructure
+import com.intellij.util.io.DataInputOutputUtil
 import com.intellij.util.io.DataInputOutputUtil.readNullable
 import com.intellij.util.io.DataInputOutputUtil.writeNullable
 import org.rust.lang.RsLanguage
@@ -36,6 +37,7 @@ import org.rust.lang.core.types.ty.TyFloat
 import org.rust.lang.core.types.ty.TyInteger
 import org.rust.openapiext.ancestors
 import org.rust.stdext.makeBitMask
+import java.math.BigInteger
 
 class RsFileStub : PsiFileStubImpl<RsFile> {
     val attributes: RsFile.Attributes
@@ -49,7 +51,7 @@ class RsFileStub : PsiFileStubImpl<RsFile> {
     override fun getType() = Type
 
     object Type : IStubFileElementType<RsFileStub>(RsLanguage) {
-        private const val STUB_VERSION = 199
+        private const val STUB_VERSION = 200
 
         // Bump this number if Stub structure changes
         override fun getStubVersion(): Int = RustParserDefinition.PARSER_VERSION + STUB_VERSION
@@ -1619,7 +1621,7 @@ sealed class RsStubLiteralKind(val kindOrdinal: Int) {
     class Boolean(val value: kotlin.Boolean) : RsStubLiteralKind(0)
     class Char(val value: kotlin.String?, val isByte: kotlin.Boolean) : RsStubLiteralKind(1)
     class String(val value: kotlin.String?, val isByte: kotlin.Boolean) : RsStubLiteralKind(2)
-    class Integer(val value: Long?, val ty: TyInteger?) : RsStubLiteralKind(3)
+    class Integer(val value: BigInteger?, val ty: TyInteger?) : RsStubLiteralKind(3)
     class Float(val value: Double?, val ty: TyFloat?) : RsStubLiteralKind(4)
 
     companion object {
@@ -1629,7 +1631,7 @@ sealed class RsStubLiteralKind(val kindOrdinal: Int) {
                     0 -> Boolean(readBoolean())
                     1 -> Char(readUTFFastAsNullable(), readBoolean())
                     2 -> String(readUTFFastAsNullable(), readBoolean())
-                    3 -> Integer(readLongAsNullable(), TyInteger.VALUES.getOrNull(readByte().toInt()))
+                    3 -> Integer(readBigIntegerAsNullable(), TyInteger.VALUES.getOrNull(readByte().toInt()))
                     4 -> Float(readDoubleAsNullable(), TyFloat.VALUES.getOrNull(readByte().toInt()))
                     else -> null
                 }
@@ -1655,7 +1657,7 @@ private fun RsStubLiteralKind?.serialize(dataStream: StubOutputStream) {
             dataStream.writeBoolean(isByte)
         }
         is RsStubLiteralKind.Integer -> {
-            dataStream.writeLongAsNullable(value)
+            dataStream.writeBigIntegerAsNullable(value)
             dataStream.writeByte(ty?.ordinal ?: -1)
         }
         is RsStubLiteralKind.Float -> {
@@ -1751,3 +1753,19 @@ private fun StubInputStream.readLongAsNullable(): Long? = readNullable(this, thi
 
 private fun StubOutputStream.writeDoubleAsNullable(value: Double?) = writeNullable(this, value, this::writeDouble)
 private fun StubInputStream.readDoubleAsNullable(): Double? = readNullable(this, this::readDouble)
+
+private fun StubOutputStream.writeBigInteger(value: BigInteger) {
+    val bytes = value.toByteArray()
+    DataInputOutputUtil.writeINT(this, bytes.size)
+    write(bytes)
+}
+
+private fun StubInputStream.readBigInteger(): BigInteger {
+    val length = DataInputOutputUtil.readINT(this)
+    val bytes = ByteArray(length)
+    readFully(bytes)
+    return BigInteger(bytes)
+}
+
+private fun StubOutputStream.writeBigIntegerAsNullable(value: BigInteger?) = writeNullable(this, value, this::writeBigInteger)
+private fun StubInputStream.readBigIntegerAsNullable(): BigInteger? = readNullable(this, this::readBigInteger)

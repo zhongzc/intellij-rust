@@ -35,7 +35,7 @@ import org.rust.lang.core.resolve.knownItems
 import org.rust.lang.core.resolve.namespaces
 import org.rust.lang.core.resolve.ref.deepResolve
 import org.rust.lang.core.types.*
-import org.rust.lang.core.types.consts.asLong
+import org.rust.lang.core.types.consts.asInteger
 import org.rust.lang.core.types.infer.containsTyOfClass
 import org.rust.lang.core.types.infer.substitute
 import org.rust.lang.core.types.ty.*
@@ -43,6 +43,7 @@ import org.rust.lang.utils.RsDiagnostic
 import org.rust.lang.utils.RsErrorCode
 import org.rust.lang.utils.addToHolder
 import org.rust.lang.utils.evaluation.evaluate
+import java.math.BigInteger
 
 class RsErrorAnnotator : AnnotatorBase(), HighlightRangeExtension {
     override fun isForceHighlightParents(file: PsiFile): Boolean = file is RsFile
@@ -247,14 +248,14 @@ class RsErrorAnnotator : AnnotatorBase(), HighlightRangeExtension {
     private fun checkDuplicateEnumVariants(holder: RsAnnotationHolder, o: RsEnumBody) {
         data class VariantInfo(val variant: RsEnumVariant, val alreadyReported: Boolean)
 
-        var discrCounter = 0L
+        var discrCounter = BigInteger.ZERO
         val reprType = (o.parent as? RsEnumItem)?.reprType ?: return
-        val indexToVariantMap = hashMapOf<Long, VariantInfo>()
+        val indexToVariantMap = hashMapOf<BigInteger, VariantInfo>()
         for (variant in o.enumVariantList) {
             val expr = variant.variantDiscriminant?.expr
-            val int = if (expr != null) expr.evaluate(reprType).asLong() ?: return else null
+            val int = if (expr != null) expr.evaluate(reprType).asInteger() ?: return else null
             val idx = int ?: discrCounter
-            discrCounter = idx + 1
+            discrCounter = idx.inc()
 
             val previous = indexToVariantMap[idx]
             if (previous != null) {
