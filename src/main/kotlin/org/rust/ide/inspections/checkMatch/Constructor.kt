@@ -95,7 +95,7 @@ sealed class Constructor {
     companion object {
         fun allConstructors(ty: Ty): List<Constructor> =
             when {
-                ty is TyBool -> listOf(true, false).map { ConstantValue(Value.Bool(it)) }
+                ty is TyBool -> listOf(true, false).map { ConstantValue(Value.Bool(it, null)) }
 
                 ty is TyAdt && ty.item is RsEnumItem -> ty.item.variants.map { Variant(it) }
 
