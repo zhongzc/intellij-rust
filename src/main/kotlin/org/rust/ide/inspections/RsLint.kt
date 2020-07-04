@@ -37,15 +37,18 @@ enum class RsLint(
             }
     },
 
+    OverflowingLiterals("overflowing_literals", defaultLevel = DENY),
+    ArithmeticOverflow("arithmetic_overflow", defaultLevel = DENY),
+    UnconditionalPanic("unconditional_panic", defaultLevel = DENY),
+    ConstErr("const_err", defaultLevel = DENY),
+
     NeedlessLifetimes("clippy::needless_lifetimes", listOf("clippy::complexity", "clippy::all", "clippy")) {
         override fun toHighlightingType(level: RsLintLevel): ProblemHighlightType =
             when (level) {
                 WARN -> ProblemHighlightType.WEAK_WARNING
                 else -> super.toHighlightingType(level)
             }
-    },
-
-    OverflowingLiterals("overflowing_literals", defaultLevel = DENY);
+    };
 
     protected open fun toHighlightingType(level: RsLintLevel): ProblemHighlightType =
         when (level) {

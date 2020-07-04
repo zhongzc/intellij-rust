@@ -555,6 +555,11 @@
                          enabledByDefault="true" level="ERROR"
                          implementationClass="org.rust.ide.inspections.RsIntegerOverflowInspection"/>
 
+        <localInspection language="Rust" groupName="Rust"
+                         displayName="Division by zero"
+                         enabledByDefault="true" level="ERROR"
+                         implementationClass="org.rust.ide.inspections.RsDivisionByZeroInspection"/>
+
         <!-- Surrounders -->
 
         <lang.surroundDescriptor language="Rust"
