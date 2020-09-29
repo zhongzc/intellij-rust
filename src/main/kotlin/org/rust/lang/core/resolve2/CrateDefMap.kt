@@ -35,13 +35,13 @@ class CrateDefMap(
     val crateDescription: String,
 ) {
     /** It is needed at least to handle `extern crate name as alias;` */
-    val externPrelude: MutableMap<String, CrateDefMap> = directDependenciesDefMaps.toMap(THashMap())
+    val externPrelude: MutableMap<String, CrateDefMap> = directDependenciesDefMaps.toMap(hashMapOf())
 
     /**
      * File included via `include!` macro has same [FileInfo.modData] as main file,
      * but different [FileInfo.hash] and [FileInfo.modificationStamp]
      */
-    val fileInfos: MutableMap<FileId, FileInfo> = THashMap()
+    val fileInfos: MutableMap<FileId, FileInfo> = hashMapOf()
 
     /**
      * Files which currently do not exist, but could affect resolve if created:
@@ -174,7 +174,7 @@ class ModData(
     // TODO: Compare with storing three maps
     val visibleItems: MutableMap<String, PerNs> = THashMap()
 
-    val childModules: MutableMap<String, ModData> = THashMap()
+    val childModules: MutableMap<String, ModData> = hashMapOf()
 
     /**
      * Macros visible in current module in legacy textual scope.

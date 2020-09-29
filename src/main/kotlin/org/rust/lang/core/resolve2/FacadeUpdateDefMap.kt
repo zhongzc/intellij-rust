@@ -11,7 +11,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapiext.isWriteAccessAllowed
-import gnu.trove.THashMap
 import org.rust.RsTask.TaskType.*
 import org.rust.lang.core.crate.Crate
 import org.rust.lang.core.crate.crateGraph
@@ -154,7 +153,7 @@ private class DefMapUpdater(
                 val defMap = defMapService.getDefMapHolder(crateId).defMap ?: return@mapNotNull null
                 it to defMap
             }
-            .toMap(THashMap())
+            .toMap(hashMapOf())
     }
 
     private fun getPool(size: Int) = if (multithread && size > 1) pool else SingleThreadExecutor()

@@ -9,7 +9,6 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.stubs.StubElement
 import com.intellij.util.SmartList
-import gnu.trove.THashMap
 import org.rust.lang.core.crate.CratePersistentId
 import org.rust.lang.core.macros.ExpansionResult
 import org.rust.lang.core.macros.MACRO_DOLLAR_CRATE_IDENTIFIER
@@ -111,7 +110,7 @@ private fun findCrateIdForEachDollarCrate(
             }
             indexInExpandedText to crateId
         }
-        .toMap(THashMap())
+        .toMap(hashMapOf())
 }
 
 /**

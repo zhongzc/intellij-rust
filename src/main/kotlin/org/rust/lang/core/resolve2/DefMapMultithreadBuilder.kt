@@ -9,7 +9,6 @@ import com.intellij.openapi.application.ex.ApplicationUtil
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.Computable
-import gnu.trove.THashMap
 import org.rust.lang.core.crate.Crate
 import org.rust.openapiext.executeUnderProgress
 import java.util.concurrent.*
@@ -34,7 +33,7 @@ class DefMapMultithreadBuilder(
     /** Values - number of dependencies for which [CrateDefMap] is not build yet */
     private val remainingDependenciesCounts: Map<Crate, AtomicInteger> = run {
         val cratesSet = crates.toSet()
-        crates.associateWithTo(THashMap()) {
+        crates.associateWithTo(hashMapOf()) {
             val remainingDependencies = it.dependencies
                 .filter { dep -> dep.crate in cratesSet }
                 .size
@@ -106,7 +105,7 @@ class DefMapMultithreadBuilder(
                 val dependencyDefMap = builtDefMaps[it] ?: return@mapNotNull null
                 it to dependencyDefMap
             }
-            .toMap(THashMap())
+            .toMap(hashMapOf())
         val defMap = buildDefMap(crate, allDependenciesDefMaps)
         val holder = defMapService.getDefMapHolder(crateId)
         holder.defMap = defMap

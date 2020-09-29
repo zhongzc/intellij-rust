@@ -8,7 +8,6 @@ package org.rust.lang.core.resolve2
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.newvfs.persistent.PersistentFS
-import gnu.trove.THashMap
 import org.rust.lang.core.crate.CratePersistentId
 import org.rust.lang.core.macros.*
 import org.rust.lang.core.psi.RsMacroBody
@@ -38,7 +37,7 @@ class DefCollector(
      * Reversed glob-imports graph, that is
      * for each module (`targetMod`) store all modules which contain glob import to `targetMod`
      */
-    private val globImports: MutableMap<ModData, MutableList<Pair<ModData, Visibility>>> = THashMap()
+    private val globImports: MutableMap<ModData, MutableList<Pair<ModData, Visibility>>> = hashMapOf()
     private val unresolvedImports: MutableList<Import> = context.imports
     private val resolvedImports: MutableList<Import> = mutableListOf()
 

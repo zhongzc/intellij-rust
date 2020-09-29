@@ -6,7 +6,6 @@
 package org.rust.lang.core.resolve2
 
 import com.intellij.openapi.project.Project
-import gnu.trove.THashMap
 import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.cargo.util.AutoInjectedCrates
 import org.rust.lang.core.crate.Crate
@@ -110,7 +109,7 @@ private fun getDirectAndAllDependencies(
             if (shouldRemoveCore && it.normName === AutoInjectedCrates.CORE) return@filterKeys false
             it.id != null
         }
-        .mapKeysTo(THashMap()) {
+        .mapKeysTo(hashMapOf()) {
             it.key.id!!
         }
     val directDependenciesDefMaps = crate.dependencies
@@ -119,7 +118,7 @@ private fun getDirectAndAllDependencies(
             val defMap = dependenciesDefMapsById[id] ?: return@mapNotNull null
             it.normName to defMap
         }
-        .toMap(THashMap())
+        .toMap(hashMapOf())
     return Pair(directDependenciesDefMaps, dependenciesDefMapsById)
 }
 
