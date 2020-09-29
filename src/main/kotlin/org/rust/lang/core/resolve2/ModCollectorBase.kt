@@ -21,6 +21,7 @@ import org.rust.lang.core.resolve2.util.getRestrictedPath
 import org.rust.lang.core.stubs.*
 import org.rust.stdext.HashCode
 import org.rust.stdext.exhaustive
+import org.rust.stdext.makeBitMask
 import org.rust.stdext.writeHashCodeNullable
 import java.io.DataOutput
 
@@ -259,17 +260,28 @@ data class ItemLight(
         visibility.writeTo(data)
 
         var flags = 0
-        if (Namespace.Types in namespaces) flags += 1
-        if (Namespace.Values in namespaces) flags += 2
-        if (Namespace.Macros in namespaces) flags += 4
-        if (isDeeplyEnabledByCfg) flags += 8
-        if (isModItem) flags += 16
-        if (isModDecl) flags += 32
-        if (hasMacroUse) flags += 64
-        if (pathAttribute !== null) flags += 128
+        if (Namespace.Types in namespaces) flags += NAMESPACE_TYPES_MASK
+        if (Namespace.Values in namespaces) flags += NAMESPACE_VALUES_MASK
+        if (Namespace.Macros in namespaces) flags += NAMESPACE_MACROS_MASK
+        if (isDeeplyEnabledByCfg) flags += IS_DEEPLY_ENABLED_BY_CFG_MASK
+        if (isModItem) flags += IS_MOD_ITEM_MASK
+        if (isModDecl) flags += IS_MOD_DECL_MASK
+        if (hasMacroUse) flags += HAS_MACRO_USE_MASK
+        if (pathAttribute !== null) flags += PATH_ATTRIBUTE_MASK
         data.writeByte(flags)
 
         if (pathAttribute !== null) data.writeUTF(pathAttribute)
+    }
+
+    companion object {
+        private val NAMESPACE_TYPES_MASK: Int = makeBitMask(0)
+        private val NAMESPACE_VALUES_MASK: Int = makeBitMask(1)
+        private val NAMESPACE_MACROS_MASK: Int = makeBitMask(2)
+        private val IS_DEEPLY_ENABLED_BY_CFG_MASK: Int = makeBitMask(3)
+        private val IS_MOD_ITEM_MASK: Int = makeBitMask(4)
+        private val IS_MOD_DECL_MASK: Int = makeBitMask(5)
+        private val HAS_MACRO_USE_MASK: Int = makeBitMask(6)
+        private val PATH_ATTRIBUTE_MASK: Int = makeBitMask(7)
     }
 }
 
@@ -290,12 +302,20 @@ class ImportLight(
         visibility.writeTo(data)
 
         var flags = 0
-        if (isDeeplyEnabledByCfg) flags += 1
-        if (isGlob) flags += 2
-        if (isExternCrate) flags += 4
-        if (isMacroUse) flags += 8
-        if (isPrelude) flags += 16
+        if (isDeeplyEnabledByCfg) flags += IS_DEEPLY_ENABLED_BY_CFG_MASK
+        if (isGlob) flags += IS_GLOB_MASK
+        if (isExternCrate) flags += IS_EXTERN_CRATE_MASK
+        if (isMacroUse) flags += IS_MACRO_USE_MASK
+        if (isPrelude) flags += IS_PRELUDE_MASK
         data.writeByte(flags)
+    }
+
+    companion object {
+        private val IS_DEEPLY_ENABLED_BY_CFG_MASK: Int = makeBitMask(0)
+        private val IS_GLOB_MASK: Int = makeBitMask(1)
+        private val IS_EXTERN_CRATE_MASK: Int = makeBitMask(2)
+        private val IS_MACRO_USE_MASK: Int = makeBitMask(3)
+        private val IS_PRELUDE_MASK: Int = makeBitMask(4)
     }
 }
 
@@ -324,9 +344,14 @@ data class MacroDefLight(
         data.writeHashCodeNullable(bodyHash)
 
         var flags = 0
-        if (hasMacroExport) flags += 1
-        if (hasLocalInnerMacros) flags += 2
+        if (hasMacroExport) flags += HAS_MACRO_EXPORT_MASK
+        if (hasLocalInnerMacros) flags += HAS_LOCAL_INNER_MACROS_MASK
         data.writeByte(flags)
+    }
+
+    companion object {
+        private val HAS_MACRO_EXPORT_MASK: Int = makeBitMask(0)
+        private val HAS_LOCAL_INNER_MACROS_MASK: Int = makeBitMask(1)
     }
 }
 
