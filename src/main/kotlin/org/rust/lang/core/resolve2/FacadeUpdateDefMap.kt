@@ -49,7 +49,7 @@ fun DefMapService.getOrUpdateIfNeeded(crate: Crate): CrateDefMap? {
             val pool = Executors.newWorkStealingPool()
             val indicator = ProgressManager.getGlobalProgressIndicator() ?: EmptyProgressIndicator()
             // TODO: Invoke outside of read action ?
-            DefMapUpdater(this, pool, indicator, multithread = true).run()
+            DefMapUpdater(crate, this, pool, indicator, multithread = true).run()
             if (holder.defMap !== null) holder.checkHasLatestStamp()
             return@synchronized holder.defMap
         }
@@ -62,7 +62,7 @@ fun updateDefMapForAllCrates(project: Project, pool: Executor, indicator: Progre
     val defMapService = project.defMapService
     runReadAction {
         synchronized(defMapService.defMapsBuildLock) {
-            DefMapUpdater(defMapService, pool, indicator, multithread).run()
+            DefMapUpdater(rootCrate = null, defMapService, pool, indicator, multithread).run()
         }
     }
 }
@@ -76,6 +76,11 @@ fun Project.forceRebuildDefMapForAllCrates(multithread: Boolean) {
 }
 
 private class DefMapUpdater(
+    /**
+     * If null, DefMap is updated for all crates.
+     * Otherwise for [rootCrate] and all it dependencies.
+     */
+    rootCrate: Crate?,
     private val defMapService: DefMapService,
     private val pool: Executor,
     private val indicator: ProgressIndicator,
@@ -85,6 +90,9 @@ private class DefMapUpdater(
     // (read action will not be started in other threads)
     private val multithread: Boolean = multithread && !isWriteAccessAllowed
     private val topSortedCrates: List<Crate> = defMapService.project.crateGraph.topSortedCrates
+
+    /** Crates to update if needed */
+    private val crates: Collection<Crate> = if (rootCrate !== null) rootCrate.flatDependencies + rootCrate else topSortedCrates
 
     fun run() {
         checkReadAccessAllowed()
@@ -98,7 +106,7 @@ private class DefMapUpdater(
 
     private fun doRun() {
         check(defMapService.project.isNewResolveEnabled)
-        if (topSortedCrates.isEmpty()) return
+        if (crates.isEmpty()) return
         indicator.checkCanceled()
 
         val cratesToCheck = findCratesToCheck()
@@ -119,7 +127,7 @@ private class DefMapUpdater(
     private fun findCratesToCheck(): List<Pair<Crate, DefMapHolder>> {
         checkReadAccessAllowed()
         val cratesToCheck = mutableListOf<Pair<Crate, DefMapHolder>>()
-        for (crate in topSortedCrates) {
+        for (crate in crates) {
             val crateId = crate.id ?: continue
             val holder = defMapService.getDefMapHolder(crateId)
             if (holder.hasLatestStamp() || holder.definitelyShouldNotRebuild()) {
@@ -146,7 +154,7 @@ private class DefMapUpdater(
     }
 
     private fun getBuiltDefMaps(cratesToUpdateAll: Set<Crate>): Map<Crate, CrateDefMap> {
-        return topSortedCrates
+        return crates
             .filter { it !in cratesToUpdateAll }
             .mapNotNull {
                 val crateId = it.id ?: return@mapNotNull null
