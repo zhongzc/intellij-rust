@@ -278,6 +278,7 @@ data class PerNs(
     }
 
     fun or(other: PerNs): PerNs {
+        if (isEmpty) return other
         if (other.isEmpty) return this
         return PerNs(
             types ?: other.types,

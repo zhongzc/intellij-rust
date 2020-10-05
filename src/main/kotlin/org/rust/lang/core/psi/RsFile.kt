@@ -268,8 +268,6 @@ val RsElement.isValidProjectMember: Boolean
 
 fun shouldIndexFile(project: Project, file: VirtualFile): Boolean {
     val index = ProjectFileIndex.getInstance(project)
-    if (!(index.isInContent(file) || index.isInLibrary(file))) {
-        return false
-    }
-    return !FileTypeManager.getInstance().isFileIgnored(file)
+    return (index.isInContent(file) || index.isInLibrary(file))
+        && !FileTypeManager.getInstance().isFileIgnored(file)
 }
