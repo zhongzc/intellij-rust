@@ -423,6 +423,7 @@ class MacroDefInfo(
     val path: ModPath,
     private val bodyText: String,
     val bodyHash: HashCode,
+    val hasMacroExport: Boolean,
     val hasLocalInnerMacros: Boolean,
     project: Project,
 ) {

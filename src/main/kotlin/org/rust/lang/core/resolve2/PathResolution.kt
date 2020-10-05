@@ -90,15 +90,22 @@ fun CrateDefMap.resolveExternCrateAsDefMap(name: String): CrateDefMap? =
 
 /**
  * Resolve in:
+ * - legacy scope of macro (needed e.g. for `use name_ as name;`)
  * - current module / scope
  * - extern prelude
  * - std prelude
  */
 private fun CrateDefMap.resolveNameInModule(modData: ModData, name: String): PerNs? {
+    val fromLegacyMacro = modData.legacyMacros[name]
+        ?.let {
+            val visibility = if (it.hasMacroExport) Visibility.Public else Visibility.Restricted(modData)
+            val visItem = VisItem(modData.path.append(name), visibility)
+            PerNs(macros = visItem)
+        } ?: PerNs.Empty
     val fromScope = modData[name]
     val fromExternPrelude = resolveNameInExternPrelude(name)
     val fromPrelude = resolveNameInPrelude(name)
-    return fromScope.or(fromExternPrelude).or(fromPrelude)
+    return fromLegacyMacro.or(fromScope).or(fromExternPrelude).or(fromPrelude)
 }
 
 private fun CrateDefMap.resolveNameInCrateRootOrExternPrelude(name: String): PerNs {

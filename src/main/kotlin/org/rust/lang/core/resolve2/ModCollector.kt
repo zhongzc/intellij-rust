@@ -211,7 +211,15 @@ class ModCollector(
         val bodyHash = def.bodyHash ?: return
         val macroPath = modData.path.append(def.name)
 
-        val defInfo = MacroDefInfo(modData.crate, macroPath, def.body, bodyHash, def.hasLocalInnerMacros, project)
+        val defInfo = MacroDefInfo(
+            modData.crate,
+            macroPath,
+            def.body,
+            bodyHash,
+            def.hasMacroExport,
+            def.hasLocalInnerMacros,
+            project
+        )
         modData.legacyMacros[def.name] = defInfo
 
         if (def.hasMacroExport) {
