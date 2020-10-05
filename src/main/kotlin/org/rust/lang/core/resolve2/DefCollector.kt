@@ -328,16 +328,9 @@ class DefCollector(
 
     private fun tryExpandMacroCall(call: MacroCallInfo): Boolean {
         val legacyMacroDef = call.macroDef
-        val def = legacyMacroDef ?: run {
-            val perNs = defMap.resolvePathFp(
-                call.containingMod,
-                call.path,
-                ResolveMode.OTHER,
-                withInvisibleItems = false  // because we expand only cfg-enabled macros
-            )
-            val defItem = perNs.resolvedDef.macros ?: return false
-            defMap.getMacroInfo(defItem)
-        }
+        val def = legacyMacroDef
+            ?: defMap.resolveMacroCallToMacroDefInfo(call.containingMod, call.path)
+            ?: return false
         val defData = RsMacroDataWithHash(RsMacroData(def.body), def.bodyHash)
         val callData = RsMacroCallDataWithHash(RsMacroCallData(call.body), call.bodyHash)
         val (expandedFile, expansion) =

@@ -1091,6 +1091,7 @@ private fun expandMacroOld(call: RsMacroCall): CachedValueProvider.Result<MacroE
 
 private fun expandMacroToMemoryFile(call: RsMacroCall, storeRangeMap: Boolean): CachedValueProvider.Result<MacroExpansion?> {
     val context = call.context as? RsElement ?: return nullExpansionResult(call)
+    // todo without psi
     val def = call.resolveToMacro() ?: return nullExpansionResult(call)
     val project = call.project
     val result = MacroExpander(project).expandMacro(

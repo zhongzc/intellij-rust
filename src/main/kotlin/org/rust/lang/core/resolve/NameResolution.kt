@@ -853,7 +853,6 @@ private data class MacroResolveResult(val result: Boolean, val usedNewResolve: B
     companion object {
         val True: MacroResolveResult = MacroResolveResult(result = true)
         val False: MacroResolveResult = MacroResolveResult(result = false)
-        val TrueWithNewResolve: MacroResolveResult = MacroResolveResult(result = true, usedNewResolve = true)
     }
 }
 

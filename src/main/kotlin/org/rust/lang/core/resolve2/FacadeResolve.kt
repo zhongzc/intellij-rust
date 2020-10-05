@@ -12,11 +12,13 @@ import org.rust.ide.utils.isEnabledByCfg
 import org.rust.lang.core.crate.Crate
 import org.rust.lang.core.crate.impl.CargoBasedCrate
 import org.rust.lang.core.crate.impl.DoctestCrate
+import org.rust.lang.core.macros.*
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.resolve.*
 import org.rust.lang.core.resolve.ItemProcessingMode.WITHOUT_PRIVATE_IMPORTS
 import org.rust.lang.core.resolve2.RsModInfoBase.*
+import org.rust.openapiext.testAssert
 import org.rust.openapiext.toPsiFile
 
 @Suppress("SimplifyBooleanWithConstants")
@@ -102,6 +104,74 @@ fun processMacros(scope: RsMod, processor: RsResolveProcessor, runBeforeResolve:
 
     return false
 }
+
+/**
+ * Resolve without PSI is needed to prevent caching incomplete result in [expandedItemsCached].
+ * Consider:
+ * - Macro expansion task wants to expand some macro
+ * - Firstly we resolve macro path
+ * - It can trigger items resolve [processItemDeclarations2].
+ *   E.g. if macro path is two segment - we need to resolve first segment as mod
+ * - [processItemDeclarations2] uses [expandedItemsCached] which will try to expand all macros in scope,
+ *   which results in recursion,
+ *   which is prevented by returning null from macro expansion,
+ *   therefore result of [expandedItemsCached] is incomplete (and cached)
+ */
+fun resolveToMacroWithoutPsi(call: RsMacroCall): RsMacroDataWithHash? {
+    // todo resolving macro call inside expanded mod? (InfoNotFound and we incorrectly will return null)
+    val scope = call.containingMod
+    testAssert({ call.isTopLevelExpansion }, { "resolveToMacroWithoutPsi works only for top level macro calls" })
+    val (_, defMap, modData) = when (val info = getModInfo(scope)) {
+        CantUseNewResolve -> {
+            val def = call.resolveToMacro() ?: return null
+            return RsMacroDataWithHash(def)
+        }
+        InfoNotFound -> return null
+        is RsModInfo -> info
+    }
+
+    val callPath = call.pathSegmentsAdjusted.toTypedArray()
+    val def = defMap.resolveMacroCallToMacroDefInfo(modData, callPath) ?: return null
+    return RsMacroDataWithHash(RsMacroData(def.body), def.bodyHash)
+}
+
+private val RsMacroCall.pathSegments: List<String>
+    get() = generateSequence(path) { it.path }
+        .map { it.referenceName }
+        .toMutableList()
+        .also { it.reverse() }
+
+/**
+ * Adjustment is performed according to [getPathKind]:
+ * - If macro call is expanded from macro def with `#[macro_export(local_inner_macros)]` attribute:
+ *   before: `foo!();`
+ *   after:  `IntellijRustDollarCrate::12345::foo!();`
+ *                                     ~~~~~ crateId
+ * - If macro call starts with [MACRO_DOLLAR_CRATE_IDENTIFIER]:
+ *   before: `IntellijRustDollarCrate::foo!();`
+ *   after:  `IntellijRustDollarCrate::12345::foo!();`
+ *                                     ~~~~~ crateId
+ *
+ * See also [processMacroCallPathResolveVariants] and [findDependencyCrateByNamePath]
+ */
+private val RsMacroCall.pathSegmentsAdjusted: List<String>
+    get() {
+        val segments = pathSegments
+
+        val expandedFrom = findMacroCallExpandedFromNonRecursive()?.resolveToMacro() ?: return segments
+        val cameFromMacroDef = !path.cameFromMacroCall()
+        return when {
+            segments.size == 1 && cameFromMacroDef && expandedFrom.hasMacroExportLocalInnerMacros -> {
+                val crate = expandedFrom.containingCrate?.id ?: return segments
+                listOf(MACRO_DOLLAR_CRATE_IDENTIFIER, crate.toString()) + segments
+            }
+            segments.first() == MACRO_DOLLAR_CRATE_IDENTIFIER -> {
+                val crate = path.resolveDollarCrateIdentifier()?.id ?: return segments
+                listOf(MACRO_DOLLAR_CRATE_IDENTIFIER, crate.toString()) + segments.subList(1, segments.size)
+            }
+            else -> segments
+        }
+    }
 
 private sealed class RsModInfoBase {
     object CantUseNewResolve : RsModInfoBase()

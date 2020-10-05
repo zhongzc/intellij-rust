@@ -68,13 +68,12 @@ class MacroExpansionShared : Disposable {
         stubs.close()
     }
 
-    fun cachedExpand(expander: MacroExpander, def: RsMacro, call: RsMacroCall): ExpansionResult? {
-        val defData = RsMacroDataWithHash(def)
+    fun cachedExpand(expander: MacroExpander, defData: RsMacroDataWithHash, call: RsMacroCall): ExpansionResult? {
         val callData = RsMacroCallDataWithHash(call)
         return cachedExpand(expander, defData, callData)
     }
 
-    fun cachedExpand(
+    private fun cachedExpand(
         expander: MacroExpander,
         def: RsMacroDataWithHash,
         call: RsMacroCallDataWithHash

@@ -883,4 +883,22 @@ class RsMacroExpansionResolveTest : RsResolveTestBase() {
             () => { use Foo as Bar; };
         }
     """)
+
+    // todo //X внутри macro_rules - так можно?
+    fun `test legacy textual macro reexported as macro 2`() = checkByCode("""
+        mod inner {
+            #[macro_export]
+            macro_rules! gen_foo_ {
+                () => { fn foo() {} };
+                         //X
+            }
+            pub use gen_foo_ as gen_foo;
+        }
+
+        inner::gen_foo!();
+
+        fn main() {
+            foo();
+        } //^
+    """)
 }

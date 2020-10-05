@@ -5,8 +5,6 @@
 
 package org.rust.lang.core.resolve
 
-import org.rust.ExpandMacros
-
 class RsMacroResolveTest : RsResolveTestBase() {
     fun `test resolve simple matching with multiple pattern definition`() = checkByCode("""
         macro_rules! test {
@@ -209,25 +207,6 @@ class RsMacroResolveTest : RsResolveTestBase() {
 
         crate::foo!();
               //^ unresolved
-    """)
-
-    // todo переместить в другой класс?
-    @ExpandMacros
-    fun `test legacy textual macro reexported as macro 2`() = checkByCode("""
-        mod inner {
-            #[macro_export]
-            macro_rules! gen_foo_ {
-                () => { pub fn foo() {} };
-                             //X
-            }
-            pub use gen_foo_ as gen_foo;
-        }
-
-        inner::gen_foo!();
-
-        fn main() {
-            foo();
-        } //^
     """)
 
     // More macro tests in [RsPackageLibraryResolveTest] and [RsStubOnlyResolveTest]

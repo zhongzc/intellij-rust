@@ -78,7 +78,18 @@ fun CrateDefMap.resolvePathFp(
     return ResolvePathResult(resultPerNs, reachedFixedPoint = true, visitedOtherCrate = visitedOtherCrate)
 }
 
-fun CrateDefMap.resolveNameInExternPrelude(name: String): PerNs {
+fun CrateDefMap.resolveMacroCallToMacroDefInfo(containingMod: ModData, macroPath: Array<String>): MacroDefInfo? {
+    val perNs = resolvePathFp(
+        containingMod,
+        macroPath,
+        ResolveMode.OTHER,
+        withInvisibleItems = false  // because we expand only cfg-enabled macros
+    )
+    val defItem = perNs.resolvedDef.macros ?: return null
+    return getMacroInfo(defItem)
+}
+
+private fun CrateDefMap.resolveNameInExternPrelude(name: String): PerNs {
     val defMap = externPrelude[name] ?: return PerNs.Empty
     return defMap.rootAsPerNs
 }
@@ -139,6 +150,7 @@ private sealed class PathKind {
 private fun getPathKind(path: Array<String>): Pair<PathKind, Int /* segments to skip */> {
     return when (path.first()) {
         MACRO_DOLLAR_CRATE_IDENTIFIER -> {
+            // todo пусть resolvePathFp принимает `Pair<Array<String> /* path */, Int? /* dollarCrateId */>` ?
             val crateId = path.getOrNull(1)?.toIntOrNull()
             if (crateId !== null) {
                 PathKind.DollarCrate(crateId) to 2
