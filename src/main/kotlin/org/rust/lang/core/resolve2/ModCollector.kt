@@ -200,9 +200,8 @@ class ModCollector(
     override fun collectMacroCall(call: MacroCallLight, stub: RsMacroCallStub) {
         check(modData.isDeeplyEnabledByCfg) { "for performance reasons cfg-disabled macros should not be collected" }
         val bodyHash = call.bodyHash
-        val pathOneSegment = call.path.singleOrNull()
-        if (bodyHash === null && pathOneSegment != "include") return
-        val macroDef = pathOneSegment?.let { modData.legacyMacros[it] }
+        if (bodyHash === null && call.path.last() != "include") return
+        val macroDef = call.path.singleOrNull()?.let { modData.legacyMacros[it] }
         val dollarCrateMap = stub.getUserData(RESOLVE_RANGE_MAP_KEY) ?: RangeMap.EMPTY
         context.macroCalls += MacroCallInfo(modData, call.path, call.body, bodyHash, macroDepth, macroDef, dollarCrateMap)
     }
