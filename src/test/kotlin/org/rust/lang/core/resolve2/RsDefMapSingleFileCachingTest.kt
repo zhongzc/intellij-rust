@@ -288,16 +288,28 @@ class RsDefMapSingleFileCachingTest : RsDefMapCachingTestBase() {
         mod foo;
     """)
 
-    fun `test change macro call 1`() = doTestChanged("""
+    fun `test change macro call path`() = doTestChanged("""
         foo!();
     """, """
         bar!();
     """)
 
-    fun `test change macro call 2`() = doTestChanged("""
+    fun `test change macro call content`() = doTestChanged("""
         foo!();
     """, """
         foo!(bar);
+    """)
+
+    fun `test change macro call content spaces 1`() = doTestChanged("""
+        foo!();
+    """, """
+        foo!( );
+    """)
+
+    fun `test change macro call content spaces 2`() = doTestChanged("""
+        foo!( );
+    """, """
+        foo!();
     """)
 
     fun `test swap macro calls`() = doTestChanged("""
@@ -306,5 +318,25 @@ class RsDefMapSingleFileCachingTest : RsDefMapCachingTestBase() {
     """, """
         foo2!();
         foo1!();
+    """)
+
+    fun `test change macro call path inside item`() = doTestNotChanged("""
+        fn func() {
+            foo!();
+        }
+    """, """
+        fn func() {
+            bar!();
+        }
+    """)
+
+    fun `test change macro call content inside item`() = doTestNotChanged("""
+        fn func() {
+            foo!();
+        }
+    """, """
+        fn func() {
+            foo!(bar);
+        }
     """)
 }

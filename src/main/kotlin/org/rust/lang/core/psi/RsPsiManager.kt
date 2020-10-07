@@ -56,6 +56,10 @@ interface RsPsiManager {
      */
     val rustStructureModificationTracker: ModificationTracker
 
+    /** A project-global modification tracker that increments on each change of [RsMacroCall] */
+    val rustMacroCallsModificationTracker: ModificationTracker
+    val rustStructureWithMacroCallsModificationTracker: ModificationTracker
+
     fun incRustStructureModificationCount()
 
     /** This is an instance method because [RsPsiManager] should be created prior to event subscription */
@@ -103,6 +107,9 @@ interface RustPsiChangeListener {
 class RsPsiManagerImpl(val project: Project) : RsPsiManager, Disposable {
 
     override val rustStructureModificationTracker = SimpleModificationTracker()
+    override val rustMacroCallsModificationTracker = SimpleModificationTracker()
+    override val rustStructureWithMacroCallsModificationTracker =
+        ModificationTracker { rustStructureModificationTracker.modificationCount + rustMacroCallsModificationTracker.modificationCount }
 
     init {
         PsiManager.getInstance(project).addPsiTreeChangeListener(CacheInvalidator(), this)
@@ -200,6 +207,9 @@ class RsPsiManagerImpl(val project: Project) : RsPsiManager, Disposable {
 
         if (isStructureModification) {
             incRustStructureModificationCount(file, psi)
+        }
+        if (owner is RsMacroCall) {
+            rustMacroCallsModificationTracker.incModificationCount()
         }
         project.messageBus.syncPublisher(RUST_PSI_CHANGE_TOPIC).rustPsiChanged(file, psi, isStructureModification)
     }

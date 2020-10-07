@@ -118,7 +118,6 @@ fun processMacros(scope: RsMod, processor: RsResolveProcessor, runBeforeResolve:
  *   therefore result of [expandedItemsCached] is incomplete (and cached)
  */
 fun resolveToMacroWithoutPsi(call: RsMacroCall): RsMacroDataWithHash? {
-    // todo resolving macro call inside expanded mod? (InfoNotFound and we incorrectly will return null)
     val scope = call.containingMod
     testAssert({ call.isTopLevelExpansion }, { "resolveToMacroWithoutPsi works only for top level macro calls" })
     val (_, defMap, modData) = when (val info = getModInfo(scope)) {

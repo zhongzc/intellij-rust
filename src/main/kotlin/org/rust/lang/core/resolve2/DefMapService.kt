@@ -9,6 +9,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.ModificationTracker
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import org.rust.lang.core.crate.Crate
@@ -25,7 +26,8 @@ import org.rust.stdext.mapToSet
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
-class DefMapHolder(private val project: Project) {
+class DefMapHolder(private val structureModificationTracker: ModificationTracker) {
+
     @Volatile
     var defMap: CrateDefMap? = null
 
@@ -33,16 +35,16 @@ class DefMapHolder(private val project: Project) {
     @Volatile
     private var defMapStamp: Long = -1
 
-    fun hasLatestStamp(): Boolean = !shouldRebuild && defMapStamp == project.structureStamp
+    fun hasLatestStamp(): Boolean = !shouldRebuild && defMapStamp == structureModificationTracker.modificationCount
 
     fun setLatestStamp() {
-        defMapStamp = project.structureStamp
+        defMapStamp = structureModificationTracker.modificationCount
     }
 
     fun checkHasLatestStamp() {
         check(hasLatestStamp()) {
             "DefMapHolder must have latest stamp right after DefMap($defMap) was updated. " +
-                "$defMapStamp vs ${project.structureStamp}"
+                "$defMapStamp vs ${structureModificationTracker.modificationCount}"
         }
     }
 
@@ -61,10 +63,6 @@ class DefMapHolder(private val project: Project) {
     val changedFiles: MutableSet<RsFile> = hashSetOf()
 
     override fun toString(): String = "DefMapHolder($defMap, stamp=$defMapStamp)"
-
-    companion object {
-        private val Project.structureStamp: Long get() = rustStructureModificationTracker.modificationCount
-    }
 }
 
 @Service
@@ -77,6 +75,9 @@ class DefMapService(val project: Project) : Disposable {
 
     /** Merged map of [CrateDefMap.missedFiles] for all crates */
     private val missedFiles: ConcurrentHashMap<Path, CratePersistentId> = ConcurrentHashMap()
+
+    private val structureModificationTracker: ModificationTracker =
+        project.rustPsiManager.rustStructureWithMacroCallsModificationTracker
 
     init {
         val connection = project.messageBus.connect(this)
@@ -91,7 +92,7 @@ class DefMapService(val project: Project) : Disposable {
     }
 
     fun getDefMapHolder(crate: CratePersistentId): DefMapHolder {
-        return defMaps.computeIfAbsent(crate) { DefMapHolder(project) }
+        return defMaps.computeIfAbsent(crate) { DefMapHolder(structureModificationTracker) }
     }
 
     fun afterDefMapBuilt(defMap: CrateDefMap) {
