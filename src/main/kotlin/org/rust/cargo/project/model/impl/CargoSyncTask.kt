@@ -27,6 +27,7 @@ import org.rust.cargo.toolchain.RustToolchain
 import org.rust.cargo.toolchain.Rustup
 import org.rust.cargo.util.DownloadResult
 import org.rust.ide.notifications.showBalloon
+import org.rust.lang.core.resolve2.defMapService
 import org.rust.openapiext.TaskResult
 import java.util.concurrent.CompletableFuture
 
@@ -137,6 +138,7 @@ private fun fetchCargoWorkspace(
         val rawCfgOptions = toolchain.getCfgOptions(projectDirectory) ?: emptyList()
         val cfgOptions = CfgOptions.parse(rawCfgOptions)
         val ws = CargoWorkspace.deserialize(manifestPath, projectDescriptionData, cfgOptions)
+        context.project.defMapService.onCargoWorkspaceChanged()
         TaskResult.Ok(ws)
     } catch (e: ExecutionException) {
         TaskResult.Err(e.message ?: "Failed to run Cargo")

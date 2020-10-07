@@ -140,7 +140,7 @@ open class RsRealProjectAnalysisTest : RsRealProjectTestBase() {
     ) {
         override fun toString(): String {
             val suffix = if (inspectionToolId != null) " by $inspectionToolId" else ""
-            return "$filePath:$line:$column '$highlightedText' ($error)$suffix"
+            return "$filePath:${line + 1}:$column '$highlightedText' ($error)$suffix"
         }
     }
 }

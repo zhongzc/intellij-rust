@@ -44,6 +44,13 @@ import java.io.Serializable
         fun compute(input: String): HashCode =
             HashCode(SHA1.digest(input.toByteArray()))
 
+        fun mix(hash1: HashCode, hash2: HashCode): HashCode {
+            val md = SHA1
+            md.update(hash1.toByteArray())
+            md.update(hash2.toByteArray())
+            return HashCode(md.digest())
+        }
+
         fun fromByteArray(bytes: ByteArray): HashCode {
             check(bytes.size == ARRAY_LEN)
             return HashCode(bytes)

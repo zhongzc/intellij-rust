@@ -1385,7 +1385,7 @@ class RsResolveTest : RsResolveTestBase() {
 
         use self::Foo;
                 //^
-    """, ItemResolutionTestmarks.externCrateSelfWithoutAlias)
+    """)
 
     fun `test const generic in fn`() = checkByCode("""
         fn f<const AAA: usize>() {

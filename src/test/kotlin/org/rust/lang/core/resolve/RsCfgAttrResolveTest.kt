@@ -105,6 +105,61 @@ class RsCfgAttrResolveTest : RsResolveTestBase() {
      """)
 
     @MockAdditionalCfgOptions("intellij_rust")
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    fun `test import overrides cfg-disabled item`() = checkByCode("""
+        use foo::func;
+        mod foo {
+            pub fn func() {}
+        }        //X
+
+        #[cfg(not(intellij_rust))]
+        fn func() {}
+
+        mod inner {
+            use super::func;
+            fn main() {
+                func();
+            } //^
+        }
+     """)
+
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    @MockAdditionalCfgOptions("intellij_rust")
+    fun `test resolve inside inline mod with cfg`() = checkByCode("""
+        #[cfg(not(intellij_rust))]
+        mod foo {
+            fn test() {
+                bar();
+            } //^
+            fn bar() {}
+             //X
+        }
+        #[cfg(intellij_rust)]
+        mod foo {
+            fn bar() {}
+        }
+     """)
+
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    @MockAdditionalCfgOptions("intellij_rust")
+    fun `test resolve inside non-inline mod with cfg`() = stubOnlyResolve("""
+    //- main.rs
+        #[cfg(intellij_rust)]
+        mod foo;
+        #[cfg(not(intellij_rust))]
+        #[path="foo_disabled.rs"]
+        mod foo;
+    //- foo.rs
+        fn bar() {}
+    //- foo_disabled.rs
+        fn test() {
+            bar();
+        } //^ foo_disabled.rs
+        fn bar() {}
+         //X
+     """)
+
+    @MockAdditionalCfgOptions("intellij_rust")
     fun `test use item with cfg`() = checkByCode("""
         mod my {
             pub fn bar() {}

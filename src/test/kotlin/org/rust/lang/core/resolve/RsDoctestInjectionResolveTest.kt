@@ -8,6 +8,7 @@ package org.rust.lang.core.resolve
 import org.rust.ProjectDescriptor
 import org.rust.WithDependencyRustProjectDescriptor
 import org.rust.WithStdlibAndDependencyRustProjectDescriptor
+import org.rust.stdext.BothEditions
 
 class RsDoctestInjectionResolveTest : RsResolveTestBase() {
     @ProjectDescriptor(WithDependencyRustProjectDescriptor::class)
@@ -61,6 +62,18 @@ class RsDoctestInjectionResolveTest : RsResolveTestBase() {
         macro_rules! foo {
             () => {};
         }
+    """)
+
+    @BothEditions
+    @ProjectDescriptor(WithStdlibAndDependencyRustProjectDescriptor::class)
+    fun `test macro from stdlib`() = stubOnlyResolve("""
+    //- lib.rs
+        /// ```
+        /// fn main() {
+        ///     println!("Hello, World!");
+        /// }   //^ ...libstd/macros.rs
+        /// ```
+        pub fn foo() {}
     """)
 
     @ProjectDescriptor(WithDependencyRustProjectDescriptor::class)

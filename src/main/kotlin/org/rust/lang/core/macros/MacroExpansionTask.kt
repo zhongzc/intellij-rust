@@ -33,6 +33,7 @@ import org.rust.lang.core.psi.ext.resolveToMacro
 import org.rust.lang.core.resolve.DEFAULT_RECURSION_LIMIT
 import org.rust.lang.core.resolve.ref.RsMacroPathReferenceImpl
 import org.rust.lang.core.resolve.ref.RsResolveCache
+import org.rust.lang.core.resolve2.updateDefMapForAllCrates
 import org.rust.openapiext.*
 import org.rust.stdext.HashCode
 import org.rust.stdext.getLeading64bits
@@ -78,8 +79,6 @@ abstract class MacroExpansionTaskBase(
         indicator.isIndeterminate = false
         realTaskIndicator = indicator
 
-        expansionSteps = getMacrosToExpand(dumbService).iterator()
-
         if (indicator is ProgressIndicatorEx) {
             // [indicator] can be an instance of [BackgroundableProcessIndicator] class, which is thread
             // sensitive and its `checkCanceled` method should be used only from a single thread
@@ -91,6 +90,10 @@ abstract class MacroExpansionTaskBase(
         } else {
             subTaskIndicator = indicator
         }
+
+        updateDefMapForAllCrates(project, pool, subTaskIndicator)
+
+        expansionSteps = getMacrosToExpand(dumbService).iterator()
 
         indicator.checkCanceled()
         var heavyProcessToken: AccessToken? = null
@@ -411,14 +414,14 @@ object ExpansionPipeline {
                 return EmptyPipeline // old expansion is up-to-date
             }
 
-            val expansion = expander.expandMacroAsText(def, call)
+            val expansion = MacroExpansionShared.getInstance().cachedExpand(expander, def, call)
             if (expansion == null) {
                 MACRO_LOG.debug("Failed to expand macro: `${call.path.referenceName}!(${call.macroBody})`")
                 return nextStageFail(callHash, defHash)
             }
 
-            val expansionBytes = expansion.first.toString().toByteArray()
-            val ranges = expansion.second
+            val expansionBytes = expansion.text.toByteArray()
+            val ranges = expansion.ranges
 
             val expansionBytesHash = VfsInternals.calculateContentHash(expansionBytes).getLeading64bits()
 

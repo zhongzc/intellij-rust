@@ -47,6 +47,7 @@ import org.rust.lang.core.resolve.NameResolutionTestmarks.selfInGroup
 import org.rust.lang.core.resolve.indexes.RsLangItemIndex
 import org.rust.lang.core.resolve.indexes.RsMacroIndex
 import org.rust.lang.core.resolve.ref.*
+import org.rust.lang.core.resolve2.processMacros
 import org.rust.lang.core.stubs.index.RsNamedElementIndex
 import org.rust.lang.core.types.*
 import org.rust.lang.core.types.consts.CtInferVar
@@ -839,8 +840,8 @@ private fun processMacrosExportedByCrate(crateRoot: RsFile, processor: RsResolve
 }
 
 fun processMacroCallVariantsInScope(context: PsiElement, processor: RsResolveProcessor): Boolean {
-    val result = MacroResolver.processMacrosInLexicalOrderUpward(context, processor)
-    if (result) return true
+    val (result, usedNewResolve) = MacroResolver.processMacrosInLexicalOrderUpward(context, processor)
+    if (result || usedNewResolve) return result
 
     val element = context.contextOrSelf<RsElement>() ?: return false
     val crateRoot = element.crateRoot as? RsFile ?: return false
@@ -848,19 +849,27 @@ fun processMacroCallVariantsInScope(context: PsiElement, processor: RsResolvePro
     return processAllScopeEntries(exportedMacrosAsScopeEntries(prelude), processor)
 }
 
+private data class MacroResolveResult(val result: Boolean, val usedNewResolve: Boolean = false) {
+    companion object {
+        val True: MacroResolveResult = MacroResolveResult(result = true)
+        val False: MacroResolveResult = MacroResolveResult(result = false)
+        val TrueWithNewResolve: MacroResolveResult = MacroResolveResult(result = true, usedNewResolve = true)
+    }
+}
+
 private class MacroResolver private constructor(private val processor: RsResolveProcessor) : RsVisitor() {
     private val visitor = MacroResolvingVisitor(reverse = true) { processor(it) }
 
-    private fun processMacrosInLexicalOrderUpward(startElement: PsiElement): Boolean {
-        if (processScopesInLexicalOrderUpward(startElement)) {
-            return true
-        }
+    private fun processMacrosInLexicalOrderUpward(startElement: PsiElement): MacroResolveResult {
+        val result = processScopesInLexicalOrderUpward(startElement)
+        if (result.result || result.usedNewResolve) return result
 
-        if (processRemainedExportedMacros()) return true
+        if (processRemainedExportedMacros()) return MacroResolveResult.True
 
-        val crateRoot = startElement.contextOrSelf<RsElement>()?.crateRoot as? RsFile ?: return false
+        val crateRoot = startElement.contextOrSelf<RsElement>()?.crateRoot as? RsFile
+            ?: return MacroResolveResult.False
         NameResolutionTestmarks.processSelfCrateExportedMacros.hit()
-        return processAllScopeEntries(exportedMacrosAsScopeEntries(crateRoot), processor)
+        return processAllScopeEntries(exportedMacrosAsScopeEntries(crateRoot), processor).toResult()
     }
 
     /**
@@ -868,7 +877,7 @@ private class MacroResolver private constructor(private val processor: RsResolve
      * until root (file), then it goes up to module declaration of the file (`mod foo;`) and processes its
      * siblings, and so on until crate root
      */
-    private fun processScopesInLexicalOrderUpward(startElement: PsiElement): Boolean {
+    private fun processScopesInLexicalOrderUpward(startElement: PsiElement): MacroResolveResult {
         val stub = (startElement as? StubBasedPsiElement<*>)?.greenStub
         return if (stub != null) {
             stubBasedProcessScopesInLexicalOrderUpward(stub)
@@ -877,11 +886,7 @@ private class MacroResolver private constructor(private val processor: RsResolve
         }
     }
 
-    private tailrec fun psiBasedProcessScopesInLexicalOrderUpward(element: PsiElement): Boolean {
-        for (e in element.leftSiblings) {
-            if (visitor.processMacros(e)) return true
-        }
-
+    private tailrec fun psiBasedProcessScopesInLexicalOrderUpward(element: PsiElement): MacroResolveResult {
         // ```
         // //- main.rs
         // macro_rules! foo { ... }
@@ -892,31 +897,55 @@ private class MacroResolver private constructor(private val processor: RsResolve
         // But we want to process macro definition before `bar!` macro call, so we have to use
         // a macro call as a "parent"
         val expandedFrom = (element as? RsExpandedElement)?.expandedFrom
-        if (expandedFrom != null && processExpandedFrom(expandedFrom)) return true
-        val context = expandedFrom ?: element.context ?: return false
+        if (expandedFrom != null && processExpandedFrom(expandedFrom)) return MacroResolveResult.True
+        val context = expandedFrom ?: element.context ?: return MacroResolveResult.False
+
+        if (context is RsMod) {
+            /** [processRemainedExportedMacros] processes local imports */
+            val result = processMacros(context, processor, ::processRemainedExportedMacros)
+            if (result !== null) return result.toResult(usedNewResolve = true)
+        }
+        for (e in element.leftSiblings) {
+            if (visitor.processMacros(e)) return MacroResolveResult.True
+        }
+
         return when {
-            context is RsFile -> processScopesInLexicalOrderUpward(context.declaration ?: return false)
+            context is RsFile -> {
+                val declaration = context.declaration ?: return MacroResolveResult.False
+                processScopesInLexicalOrderUpward(declaration)
+            }
             // Optimization. Let this function be tailrec if go up by real parent (in the same file)
             context != element.parent -> processScopesInLexicalOrderUpward(context)
             else -> psiBasedProcessScopesInLexicalOrderUpward(context)
         }
     }
 
-    private tailrec fun stubBasedProcessScopesInLexicalOrderUpward(element: StubElement<*>): Boolean {
-        val parentStub = element.parentStub ?: return false
+    private tailrec fun stubBasedProcessScopesInLexicalOrderUpward(element: StubElement<*>): MacroResolveResult {
+        val parentStub = element.parentStub ?: return MacroResolveResult.False
         val siblings = parentStub.childrenStubs
         val index = siblings.indexOf(element)
         check(index != -1) { "Can't find stub index" }
         val leftSiblings = siblings.subList(0, index)
-        for (it in leftSiblings) {
-            if (visitor.processMacros(it.psi)) return true
-        }
+
         // See comment in psiBasedProcessScopesInLexicalOrderUpward
         val expandedFrom = (element.psi as? RsExpandedElement)?.expandedFrom
-        if (expandedFrom != null && processExpandedFrom(expandedFrom)) return true
+        if (expandedFrom != null && processExpandedFrom(expandedFrom)) return MacroResolveResult.True
         val parentPsi = expandedFrom ?: parentStub.psi
+
+        if (parentPsi is RsMod) {
+            /** [processRemainedExportedMacros] processes local imports */
+            val result = processMacros(parentPsi, processor, ::processRemainedExportedMacros)
+            if (result !== null) return result.toResult(usedNewResolve = true)
+        }
+        for (it in leftSiblings) {
+            if (visitor.processMacros(it.psi)) return MacroResolveResult.True
+        }
+
         return when {
-            parentPsi is RsFile -> processScopesInLexicalOrderUpward(parentPsi.declaration ?: return false)
+            parentPsi is RsFile -> {
+                val declaration = parentPsi.declaration ?: return MacroResolveResult.False
+                processScopesInLexicalOrderUpward(declaration)
+            }
             // Optimization. Let this function be tailrec if go up by stub parent
             parentPsi != parentStub.psi -> processScopesInLexicalOrderUpward(parentPsi)
             else -> stubBasedProcessScopesInLexicalOrderUpward(parentStub)
@@ -947,8 +976,11 @@ private class MacroResolver private constructor(private val processor: RsResolve
     }
 
     companion object {
-        fun processMacrosInLexicalOrderUpward(startElement: PsiElement, processor: RsResolveProcessor): Boolean =
+        fun processMacrosInLexicalOrderUpward(startElement: PsiElement, processor: RsResolveProcessor): MacroResolveResult =
             MacroResolver(processor).processMacrosInLexicalOrderUpward(startElement)
+
+        private fun Boolean.toResult(usedNewResolve: Boolean = false): MacroResolveResult =
+            MacroResolveResult(this, usedNewResolve)
     }
 }
 

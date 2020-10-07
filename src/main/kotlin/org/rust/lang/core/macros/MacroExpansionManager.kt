@@ -52,6 +52,7 @@ import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.RsPsiTreeChangeEvent.*
 import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.resolve.indexes.RsMacroCallIndex
+import org.rust.lang.core.resolve2.defMapService
 import org.rust.openapiext.*
 import org.rust.stdext.*
 import org.rust.taskQueue
@@ -68,12 +69,14 @@ interface MacroExpansionManager {
     val indexableDirectory: VirtualFile?
     fun getExpansionFor(call: RsMacroCall): CachedValueProvider.Result<MacroExpansion?>
     fun getExpandedFrom(element: RsExpandedElement): RsMacroCall?
+
     /** Optimized equivalent for `getExpandedFrom(element)?.context` */
     fun getContextOfMacroCallExpandedFrom(element: RsExpandedElement, stubParent: PsiElement?): PsiElement?
     fun isExpansionFileOfCurrentProject(file: VirtualFile): Boolean
     fun reexpand()
 
     val macroExpansionMode: MacroExpansionMode
+    val isMacroExpansionEnabled: Boolean
 
     var expansionState: ExpansionState?
 
@@ -114,6 +117,7 @@ inline fun <T> MacroExpansionManager.withExpansionState(
 }
 
 val MACRO_LOG = Logger.getInstance("org.rust.macros")
+
 // The path is visible in indexation progress
 const val MACRO_EXPANSION_VFS_ROOT = "rust_expanded_macros"
 private const val CORRUPTION_MARKER_NAME = "corruption.marker"
@@ -244,6 +248,8 @@ class MacroExpansionManagerImpl(
 
     override val macroExpansionMode: MacroExpansionMode
         get() = inner?.expansionMode ?: MacroExpansionMode.OLD
+    override val isMacroExpansionEnabled: Boolean
+        get() = inner?.isMacroExpansionEnabled ?: false
 
     override var expansionState: MacroExpansionManager.ExpansionState?
         get() = inner?.expansionState
@@ -307,7 +313,7 @@ private class MacroExpansionServiceBuilder private constructor(
     private val dirs: Dirs,
     private val serStorage: SerializedExpandedMacroStorage?,
     private val expansionsDirVi: VirtualFile
-){
+) {
     fun buildInReadAction(project: Project): MacroExpansionServiceImplInner {
         val storage = serStorage?.deserializeInReadAction(project) ?: ExpandedMacroStorage(project)
         return MacroExpansionServiceImplInner(project, dirs, storage, expansionsDirVi)
@@ -341,7 +347,8 @@ private class MacroExpansionServiceBuilder private constructor(
             return try {
                 dataFile.newInflaterDataInputStream().use { data ->
                     val sems = SerializedExpandedMacroStorage.load(data) ?: return null
-                    val fs = MacroExpansionFileSystem.readFSItem(data, null) as? MacroExpansionFileSystem.FSItem.FSDir ?: return null
+                    val fs = MacroExpansionFileSystem.readFSItem(data, null) as? MacroExpansionFileSystem.FSItem.FSDir
+                        ?: return null
                     sems to fs
                 }
             } catch (e: java.nio.file.NoSuchFileException) {
@@ -448,7 +455,7 @@ private class MacroExpansionServiceImplInner(
             // Using a buffer to avoid IO in the read action
             // BACKCOMPAT: 2020.1 use async read action and extract `runReadAction` from `withContext`
             val (buffer, modCount) = runReadAction {
-                val buffer = BufferExposingByteArrayOutputStream(1024*1024) // average stdlib storage size
+                val buffer = BufferExposingByteArrayOutputStream(1024 * 1024) // average stdlib storage size
                 DataOutputStream(buffer).use { data ->
                     ExpandedMacroStorage.saveStorage(storage, data)
                     val dirToSave = MacroExpansionFileSystem.getInstance().getDirectory(dirs.expansionDirPath) ?: run {
@@ -743,7 +750,10 @@ private class MacroExpansionServiceImplInner(
 
         override fun handleEvent(event: RsPsiTreeChangeEvent) {
             if (!isExpansionModeNew) return
-            val file = event.file as? RsFile ?: return
+            val file = event.file as? RsFile ?: run {
+                handleEventWithoutFile(event)
+                return
+            }
             if (RsPsiManager.isIgnorePsiEvents(file)) return
             val virtualFile = file.virtualFile ?: return
             if (virtualFile !is VirtualFileWithId) return
@@ -771,6 +781,27 @@ private class MacroExpansionServiceImplInner(
             }
         }
 
+        private fun handleEventWithoutFile(event: RsPsiTreeChangeEvent) {
+            when (event) {
+                is ChildAddition.After -> {
+                    val file = event.child as? RsFile ?: return
+                    project.defMapService.onFileAdded(file)
+                    scheduleChangedMacrosUpdate(file.isWorkspaceMember())
+                }
+                is ChildRemoval.Before -> {
+                    val file = event.child as? RsFile ?: return
+                    project.defMapService.onFileRemoved(file)
+                    scheduleChangedMacrosUpdate(file.isWorkspaceMember())
+                }
+                is PropertyChange.After -> {
+                    if (isUnitTestMode) {
+                        project.defMapService.scheduleRecheckAllDefMaps()
+                    }
+                }
+                else -> Unit
+            }
+        }
+
         override fun rustPsiChanged(file: PsiFile, element: PsiElement, isStructureModification: Boolean) {
             if (!isExpansionModeNew) return
             val shouldScheduleUpdate =
@@ -779,6 +810,7 @@ private class MacroExpansionServiceImplInner(
             if (shouldScheduleUpdate && file is RsFile) {
                 val isWorkspace = file.isWorkspaceMember()
                 scheduleChangedMacrosUpdate(isWorkspace)
+                project.defMapService.onFileChanged(file)
             }
         }
 
@@ -814,6 +846,12 @@ private class MacroExpansionServiceImplInner(
             } else {
                 project.rustSettings.macroExpansionEngine.toMode()
             }
+        }
+    val isMacroExpansionEnabled: Boolean
+        get() = when (val expansionMode = expansionMode) {
+            MacroExpansionMode.Disabled -> false
+            MacroExpansionMode.Old -> true
+            is MacroExpansionMode.New -> expansionMode.scope !== MacroExpansionScope.NONE
         }
 
     val isExpansionModeNew: Boolean
