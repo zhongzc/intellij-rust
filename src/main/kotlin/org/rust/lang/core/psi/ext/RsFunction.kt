@@ -199,6 +199,10 @@ fun RsFunction.findMethodCalls(scope: SearchScope? = null): Sequence<RsMethodCal
         .filterIsInstance<RsMethodCall>()
 }
 
+fun RsFunction.findCalls(scope: SearchScope? = null): Sequence<RsElement> {
+    return findFunctionCalls(scope) + findMethodCalls(scope)
+}
+
 private fun RsElement.searchReferences(scope: SearchScope? = null): Query<PsiReference> {
     return if (scope == null) {
         ReferencesSearch.search(this)

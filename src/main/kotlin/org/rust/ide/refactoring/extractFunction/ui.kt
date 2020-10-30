@@ -9,13 +9,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapiext.isUnitTestMode
-import com.intellij.refactoring.ui.MethodSignatureComponent
 import com.intellij.refactoring.ui.NameSuggestionsField
 import com.intellij.ui.components.dialog
 import com.intellij.ui.layout.CCFlags
 import com.intellij.ui.layout.panel
 import com.intellij.util.ui.JBUI
 import org.jetbrains.annotations.TestOnly
+import org.rust.ide.refactoring.RsSignatureComponent
 import org.rust.ide.refactoring.isValidRustVariableIdentifier
 import org.rust.lang.RsFileType
 
@@ -114,12 +114,4 @@ private class DialogExtractFunctionUi(
         config.name = functionName.enteredName
         config.visibilityLevelPublic = visibilityBox.selectedItem == "Public"
     }
-}
-
-private class RsSignatureComponent(
-    signature: String, project: Project
-) : MethodSignatureComponent(signature, project, RsFileType) {
-    private val myFileName = "dummy." + RsFileType.defaultExtension
-
-    override fun getFileName(): String = myFileName
 }

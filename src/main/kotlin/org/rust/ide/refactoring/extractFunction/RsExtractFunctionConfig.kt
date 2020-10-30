@@ -316,7 +316,7 @@ class RsExtractFunctionConfig private constructor(
     }
 }
 
-private fun Ty.types(): Set<Ty> {
+fun Ty.types(): Set<Ty> {
     val types = mutableSetOf<Ty>()
 
     fun collect(type: Ty) {
@@ -329,7 +329,7 @@ private fun Ty.types(): Set<Ty> {
     return types
 }
 
-private fun Ty.dependTypes(boundMap: Map<Ty, Set<Ty>>): Set<Ty> {
+fun Ty.dependTypes(boundMap: Map<Ty, Set<Ty>>): Set<Ty> {
     val types = mutableSetOf<Ty>()
 
     fun collect(type: Ty) {
