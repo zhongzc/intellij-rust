@@ -25,6 +25,7 @@ import org.rust.lang.core.types.ty.TyPrimitive
 import org.rust.lang.core.types.type
 import org.rust.lang.doc.RsDocRenderMode
 import org.rust.lang.doc.documentationAsHtml
+import org.rust.lang.doc.psi.RsDocComment
 import org.rust.openapiext.escaped
 import org.rust.stdext.joinToWithBuffer
 
@@ -62,7 +63,7 @@ class RsDocumentationProvider : AbstractDocumentationProvider() {
     override fun collectDocComments(file: PsiFile, sink: DocCommentConsumer) {
         if (file !is RsFile) return
         for (element in SyntaxTraverser.psiTraverser(file)) {
-            if (element is RsDocCommentImpl) {
+            if (element is RsDocComment) {
                 sink.accept(element)
             }
         }
@@ -169,7 +170,7 @@ class RsDocumentationProvider : AbstractDocumentationProvider() {
 
     @Suppress("UnstableApiUsage")
     override fun generateRenderedDoc(comment: PsiDocCommentBase): String? {
-        return (comment as? RsDocCommentImpl)?.documentationAsHtml(renderMode = RsDocRenderMode.INLINE_DOC_COMMENT)
+        return (comment as? RsDocComment)?.documentationAsHtml(renderMode = RsDocRenderMode.INLINE_DOC_COMMENT)
     }
 
     private val RsDocAndAttributeOwner.hasExternalDocumentation: Boolean get() {

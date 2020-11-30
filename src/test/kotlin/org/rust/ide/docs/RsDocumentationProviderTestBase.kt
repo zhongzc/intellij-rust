@@ -6,9 +6,9 @@
 package org.rust.ide.docs
 
 import org.intellij.lang.annotations.Language
-import org.rust.lang.core.psi.RsDocCommentImpl
 import org.rust.lang.core.psi.ext.RsDocAndAttributeOwner
 import org.rust.lang.doc.docElements
+import org.rust.lang.doc.psi.RsDocComment
 
 abstract class RsDocumentationProviderTestBase : RsDocumentationProviderTest() {
 
@@ -53,7 +53,7 @@ abstract class RsDocumentationProviderTestBase : RsDocumentationProviderTest() {
         doTest(code, expected) { originalItem, _ ->
             (originalItem as? RsDocAndAttributeOwner)
                 ?.docElements()
-                ?.filterIsInstance<RsDocCommentImpl>()
+                ?.filterIsInstance<RsDocComment>()
                 ?.mapNotNull { generateRenderedDoc(it) }
                 ?.joinToString("\n")
                 ?.hideSpecificStyles()

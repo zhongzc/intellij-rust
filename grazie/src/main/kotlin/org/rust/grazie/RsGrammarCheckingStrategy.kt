@@ -10,10 +10,11 @@ import com.intellij.grazie.grammar.strategy.GrammarCheckingStrategy.TextDomain
 import com.intellij.grazie.grammar.strategy.StrategyUtils
 import com.intellij.grazie.grammar.strategy.impl.RuleGroup
 import com.intellij.grazie.utils.LinkedSet
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiElement
-import org.rust.ide.injected.findDoctestInjectableRanges
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.elementType
+import org.rust.lang.doc.psi.RsDocComment
 
 class RsGrammarCheckingStrategy : GrammarCheckingStrategy {
 
@@ -23,11 +24,18 @@ class RsGrammarCheckingStrategy : GrammarCheckingStrategy {
     // BACKCOMPAT: 2020.2
     @Suppress("UnstableApiUsage", "OverridingDeprecatedMember")
     override fun isTypoAccepted(root: PsiElement, typoRange: IntRange, ruleRange: IntRange): Boolean {
-        if (root !is RsDocCommentImpl) return true
+        if (root !is RsDocComment) return true
 
-        return findDoctestInjectableRanges(root)
-            .flatten()
-            .none { it.intersects(typoRange.first, typoRange.last) }
+        val injectedLanguageManager = InjectedLanguageManager.getInstance(root.project)
+        return root.codeFences.none {
+            it.textRange.intersects(typoRange.first, typoRange.last) &&
+                !injectedLanguageManager.getInjectedPsiFiles(it).isNullOrEmpty()
+        }
+    }
+
+    @Suppress("Deprecation")
+    override fun isTypoAccepted(parent: PsiElement, roots: List<PsiElement>, typoRange: IntRange, ruleRange: IntRange): Boolean {
+        return isTypoAccepted(parent, typoRange, ruleRange)
     }
 
     override fun getIgnoredRuleGroup(root: PsiElement, child: PsiElement): RuleGroup? = RuleGroup.LITERALS
