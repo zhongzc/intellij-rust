@@ -287,6 +287,19 @@ data class CargoRegistryCrate(val versions: List<CargoRegistryCrateVersion>) {
 
     val sortedVersions: List<CargoRegistryCrateVersion>
         get() = versions.sorted()
+
+    @Suppress("NAME_SHADOWING")
+    fun findSatisfyingVersion(requirement: String): CargoRegistryCrateVersion? {
+        val requirement = if (requirement.first().isDigit()) {
+            "^$requirement"
+        } else {
+            requirement
+        }
+
+        return this.sortedVersions.asReversed().find { crateVersion ->
+            crateVersion.version?.satisfies(requirement) == true
+        }
+    }
 }
 
 data class CargoRegistryCrateVersion(

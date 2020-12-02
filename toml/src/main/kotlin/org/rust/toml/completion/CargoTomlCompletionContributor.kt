@@ -24,9 +24,9 @@ class CargoTomlCompletionContributor : CompletionContributor() {
             extend(BASIC, inSpecificDependencyHeaderKey, CratesIoCargoTomlSpecificDependencyHeaderCompletionProvider())
             extend(BASIC, inSpecificDependencyKeyValue, CratesIoCargoTomlSpecificDependencyVersionCompletionProvider())
             extend(BASIC, inFeatureDependencyArray, CargoTomlFeatureDependencyCompletionProvider())
-            extend(BASIC, inDependencyPackageFeatureArray, CargoTomlDependencyFeaturesCompletionProvider())
 
             extend(BASIC, inDependencyKeyValue, CargoTomlDependencyCompletionProvider())
+            extend(BASIC, inDependencyPackageFeatureArray, CargoTomlDependencyFeaturesCompletionProvider())
         }
     }
 }
