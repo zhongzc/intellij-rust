@@ -21,6 +21,8 @@ import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
 import com.intellij.util.io.*
+import com.vdurmont.semver4j.Semver
+import com.vdurmont.semver4j.SemverException
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.lib.ObjectId
@@ -279,8 +281,32 @@ class CratesLocalIndexService : PersistentStateComponent<CratesLocalIndexState>,
 private fun VFileEvent.pathEndsWith(suffix: String): Boolean =
     path.endsWith(suffix) || (this is VFilePropertyChangeEvent && oldPath.endsWith(suffix))
 
-data class CargoRegistryCrate(val versions: List<CargoRegistryCrateVersion>)
-data class CargoRegistryCrateVersion(val version: String, val isYanked: Boolean, val features: List<String>) {
+data class CargoRegistryCrate(val versions: List<CargoRegistryCrateVersion>) {
+    val latestVersion: CargoRegistryCrateVersion?
+        get() = versions.max()
+
+    val sortedVersions: List<CargoRegistryCrateVersion>
+        get() = versions.sorted()
+}
+
+data class CargoRegistryCrateVersion(
+    val versionString: String,
+    val isYanked: Boolean,
+    val features: List<String>
+) : Comparable<CargoRegistryCrateVersion> {
+
+    val version: Semver? by lazy {
+        try {
+            Semver(versionString, Semver.SemverType.NPM)
+        } catch (e: SemverException) {
+            null
+        }
+    }
+
+    override fun compareTo(other: CargoRegistryCrateVersion): Int {
+        return this.version?.compareTo(other.version) ?: return 0
+    }
+
     companion object {
         private data class ParsedVersion(
             val name: String,
@@ -301,16 +327,11 @@ data class CargoRegistryCrateVersion(val version: String, val isYanked: Boolean,
     }
 }
 
-val CargoRegistryCrate.lastVersion: String?
-    // TODO: Last version sometimes can differ from latest major
-    //  (e.g. if developer uploaded a patch to previous major)
-    get() = versions.lastOrNull()?.version
-
 private object CrateExternalizer : DataExternalizer<CargoRegistryCrate> {
     override fun save(out: DataOutput, value: CargoRegistryCrate) {
         out.writeInt(value.versions.size)
         value.versions.forEach { version ->
-            out.writeUTF(version.version)
+            out.writeUTF(version.versionString)
             out.writeBoolean(version.isYanked)
 
             out.writeInt(version.features.size)
