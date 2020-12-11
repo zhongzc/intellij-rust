@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import org.apache.tools.ant.taskdefs.condition.Os.*
 import org.gradle.api.JavaVersion.VERSION_1_8
 import org.gradle.api.internal.HasConvention
@@ -12,7 +13,6 @@ import org.jetbrains.intellij.tasks.RunIdeTask
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jsoup.Jsoup
-import groovy.json.JsonSlurper
 import java.io.Writer
 import java.net.URL
 import kotlin.concurrent.thread
@@ -288,13 +288,6 @@ project(":") {
         purgeOldFiles = true
     }
 
-    val generateRustDocHighlightingLexer = task<GenerateLexer>("generateRustDocHighlightingLexer") {
-        source = "src/main/grammars/RustDocHighlightingLexer.flex"
-        targetDir = "src/gen/org/rust/lang/doc/lexer"
-        targetClass = "_RustDocHighlightingLexer"
-        purgeOldFiles = true
-    }
-
     val generateRustParser = task<GenerateParser>("generateRustParser") {
         source = "src/main/grammars/RustParser.bnf"
         targetRoot = "src/gen"
@@ -305,7 +298,7 @@ project(":") {
 
     tasks.withType<KotlinCompile> {
         dependsOn(
-            generateRustLexer, generateRustDocHighlightingLexer,
+            generateRustLexer,
             generateRustParser
         )
     }
