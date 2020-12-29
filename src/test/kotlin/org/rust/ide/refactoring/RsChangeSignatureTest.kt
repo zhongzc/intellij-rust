@@ -277,6 +277,26 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.add(Parameter(createPat("c"), TyInteger.U32))
     }
 
+    fun `test add parameter to method`() = doTest("""
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self) {}
+        }
+        fn bar(s: S) {
+            s.foo();
+        }
+    """, """
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, a: u32) {}
+        }
+        fn bar(s: S) {
+            s.foo();
+        }
+    """) {
+        parameters.add(Parameter(createPat("a"), TyInteger.U32))
+    }
+
     fun `test swap parameters`() = doTest("""
         fn foo/*caret*/(a: u32, b: u32) {}
         fn bar() {

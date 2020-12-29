@@ -338,7 +338,7 @@ private fun insertItemWithComma(
 private fun findAnchorToInsertItem(items: PsiElement, index: Int): PsiElement? {
     val commas = items.childrenWithLeaves.filter { it.elementType == COMMA }.toList()
     return when {
-        index == 0 -> items.firstChild
+        index == 0 -> (items as? RsValueParameterList)?.selfParameter ?: items.firstChild
         commas.size < index -> items.lastChild.prevSibling
         else -> commas[index - 1]
     }
