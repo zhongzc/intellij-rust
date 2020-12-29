@@ -182,6 +182,9 @@ val QueryAttributes.isProcMacroDef
         "proc_macro_derive"
     )
 
+/**
+ * Find all function calls that call this function.
+ */
 fun RsFunction.findFunctionCalls(scope: SearchScope? = null): Sequence<RsCallExpr> {
     return searchReferences(scope)
         .asSequence()
@@ -192,6 +195,9 @@ fun RsFunction.findFunctionCalls(scope: SearchScope? = null): Sequence<RsCallExp
         }
 }
 
+/**
+ * Find all method calls that call this function.
+ */
 fun RsFunction.findMethodCalls(scope: SearchScope? = null): Sequence<RsMethodCall> {
     return searchReferences(scope)
         .asSequence()
@@ -201,6 +207,20 @@ fun RsFunction.findMethodCalls(scope: SearchScope? = null): Sequence<RsMethodCal
 
 fun RsFunction.findCalls(scope: SearchScope? = null): Sequence<RsElement> {
     return findFunctionCalls(scope) + findMethodCalls(scope)
+}
+
+/**
+ * Find all reference usages of this function, for example when the function is passed as a parameter to another
+ * function.
+ */
+fun RsFunction.findReferenceUsages(scope: SearchScope? = null): Sequence<RsPath> {
+    return searchReferences(scope)
+        .asSequence()
+        .mapNotNull {
+            val path = it.element as? RsPath ?: return@mapNotNull null
+            if (path.parent.parent is RsCallExpr) null
+            else path
+        }
 }
 
 private fun RsElement.searchReferences(scope: SearchScope? = null): Query<PsiReference> {

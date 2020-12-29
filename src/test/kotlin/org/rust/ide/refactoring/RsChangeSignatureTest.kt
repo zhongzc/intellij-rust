@@ -47,6 +47,24 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {}
 
+    fun `test rename function reference`() = doTest("""
+        fn foo/*caret*/() {}
+        fn id<T>(t: T) {}
+
+        fn baz() {
+            id(foo)
+        }
+    """, """
+        fn bar/*caret*/() {}
+        fn id<T>(t: T) {}
+
+        fn baz() {
+            id(bar)
+        }
+    """) {
+        name = "bar"
+    }
+
     fun `test rename function`() = doTest("""
         fn foo/*caret*/() {}
     """, """

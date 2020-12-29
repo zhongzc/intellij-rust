@@ -98,7 +98,8 @@ class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
 }
 
 private fun changeSignature(project: Project, config: RsChangeFunctionSignatureConfig, function: RsFunction) {
-    val usages = function.findCalls().toList()
+    val callUsages = function.findCalls().toList()
+    val referenceUsages = function.findReferenceUsages().toList()
     val factory = RsPsiFactory(project)
     val parameterOps = buildParameterOperations(config)
     val nameChanged = config.name != function.name
@@ -112,11 +113,16 @@ private fun changeSignature(project: Project, config: RsChangeFunctionSignatureC
     changeAsync(factory, function, config)
     changeUnsafe(factory, function, config)
 
-    usages.forEach {
+    callUsages.forEach {
         if (nameChanged) {
             renameUsage(factory, it, config)
         }
         changeArguments(factory, it, parameterOps)
+    }
+    if (nameChanged) {
+        referenceUsages.forEach {
+            renameUsage(factory, it, config)
+        }
     }
 }
 
@@ -131,13 +137,12 @@ private fun renameUsage(
 ) {
     val identifier = factory.createIdentifier(config.name)
     when (usage) {
+        is RsPath -> usage.referenceNameElement?.replace(identifier)
         is RsCallExpr -> {
             val path = (usage.expr as? RsPathExpr)?.path ?: return
             path.referenceNameElement?.replace(identifier)
         }
-        is RsMethodCall -> {
-            usage.identifier.replace(identifier)
-        }
+        is RsMethodCall -> usage.identifier.replace(identifier)
     }
 }
 
