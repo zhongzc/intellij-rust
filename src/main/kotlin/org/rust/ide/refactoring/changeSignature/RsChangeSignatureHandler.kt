@@ -8,7 +8,6 @@ package org.rust.ide.refactoring.changeSignature
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.NlsContexts
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.refactoring.RefactoringBundle
@@ -20,10 +19,10 @@ import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.usageView.BaseUsageViewDescriptor
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewDescriptor
-import org.jetbrains.annotations.NotNull
 import org.rust.RsBundle
 import org.rust.ide.presentation.renderInsertionSafe
 import org.rust.ide.refactoring.findBinding
+import org.rust.ide.utils.import.RsImportHelper.importTypeReferencesFromTy
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.RsElementTypes.COMMA
 import org.rust.lang.core.psi.ext.*
@@ -164,6 +163,7 @@ private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config
                 skipUnchangedDefaultTypeArguments = true
             ))
             function.addAfter(ret, function.valueParameterList)
+            importTypeReferencesFromTy(function, config.returnType, useAliases = true)
         }
     }
 }
@@ -179,7 +179,12 @@ private fun changeParameters(
     val originalParameters = parameters.copy() as RsValueParameterList
 
     fun createType(parameter: Parameter): RsTypeReference =
-        factory.tryCreateType(parameter.type.renderInsertionSafe()) ?: factory.createType("()")
+        factory.tryCreateType(parameter.type.renderInsertionSafe(
+            context = function,
+            includeLifetimeArguments = true,
+            useAliasNames = true,
+            skipUnchangedDefaultTypeArguments = true
+        )) ?: factory.createType("()")
 
     cycle@ for ((index, data) in config.parameters.zip(parameterOps).withIndex()) {
         val (parameter, op) = data
@@ -191,6 +196,7 @@ private fun changeParameters(
                 val newParameter = factory.createValueParameter(parameter.patText, typeReference, reference = false)
                 val anchor = findAnchorToInsertItem(parameters, index)
                 insertItemWithComma(factory, newParameter, parameters, anchor)
+                importTypeReferencesFromTy(function, parameter.type, useAliases = true)
             }
             is ParameterOperation.Move -> {
                 deleteItem(parameterList, index)

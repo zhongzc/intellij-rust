@@ -7,12 +7,15 @@ package org.rust.ide.refactoring
 
 import org.intellij.lang.annotations.Language
 import org.rust.MockAdditionalCfgOptions
+import org.rust.MockEdition
 import org.rust.RsTestBase
+import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.ide.refactoring.changeSignature.Parameter
 import org.rust.ide.refactoring.changeSignature.RsFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
 import org.rust.lang.core.psi.RsPat
 import org.rust.lang.core.psi.RsPsiFactory
+import org.rust.lang.core.psi.RsStructItem
 import org.rust.lang.core.types.ty.TyInteger
 import org.rust.lang.core.types.ty.TyUnit
 
@@ -465,6 +468,82 @@ Cannot change signature of function with cfg-disabled parameters""")
         isAsync = true
         isUnsafe = true
         setVisibility("pub")
+    }
+
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    fun `test import return type in different module`() = doTest("""
+        mod foo {
+            pub struct S;
+                     //^
+            pub trait Trait {
+                fn f1/*caret*/(&self);
+            }
+        }
+        mod bar {
+            use super::foo::Trait;
+
+            struct T;
+            impl Trait for T {
+                fn f1(&self) { unimplemented!() }
+            }
+        }
+    """, """
+        mod foo {
+            pub struct S;
+                     //^
+            pub trait Trait {
+                fn f1(&self) -> S;
+            }
+        }
+        mod bar {
+            use super::foo::Trait;
+            use crate::foo::S;
+
+            struct T;
+            impl Trait for T {
+                fn f1(&self) -> S { unimplemented!() }
+            }
+        }
+    """) {
+        returnType = findElementInEditor<RsStructItem>().declaredType
+    }
+
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    fun `test import parameter type in different module`() = doTest("""
+        mod foo {
+            pub struct S;
+                     //^
+            pub trait Trait {
+                fn f1/*caret*/(&self);
+            }
+        }
+        mod bar {
+            use super::foo::Trait;
+
+            struct T;
+            impl Trait for T {
+                fn f1(&self) { unimplemented!() }
+            }
+        }
+    """, """
+        mod foo {
+            pub struct S;
+                     //^
+            pub trait Trait {
+                fn f1(&self, a: S);
+            }
+        }
+        mod bar {
+            use super::foo::Trait;
+            use crate::foo::S;
+
+            struct T;
+            impl Trait for T {
+                fn f1(&self, a: S) { unimplemented!() }
+            }
+        }
+    """) {
+        parameters.add(Parameter(createPat("a"), findElementInEditor<RsStructItem>().declaredType))
     }
 
     private fun RsFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
