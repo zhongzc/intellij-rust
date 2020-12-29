@@ -18,15 +18,6 @@ import org.rust.lang.core.psi.ext.typeParameters
 import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.type
 
-class RsSignatureComponent(
-    signature: String,
-    project: Project
-) : MethodSignatureComponent(signature, project, RsFileType) {
-    private val myFileName = "dummy." + RsFileType.defaultExtension
-
-    override fun getFileName(): String = myFileName
-}
-
 /**
  * Helper class for storing and formatting information about the signature of a function.
  */
