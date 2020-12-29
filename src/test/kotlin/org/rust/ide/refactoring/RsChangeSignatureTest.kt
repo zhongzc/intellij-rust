@@ -6,6 +6,7 @@
 package org.rust.ide.refactoring
 
 import org.intellij.lang.annotations.Language
+import org.rust.MockAdditionalCfgOptions
 import org.rust.RsTestBase
 import org.rust.ide.refactoring.changeSignature.Parameter
 import org.rust.ide.refactoring.changeSignature.RsFunctionSignatureConfig
@@ -16,6 +17,21 @@ import org.rust.lang.core.types.ty.TyInteger
 import org.rust.lang.core.types.ty.TyUnit
 
 class RsChangeSignatureTest : RsTestBase() {
+    @MockAdditionalCfgOptions("intellij_rust")
+    fun `test unavailable if a parameter is cfg-disabled`() = checkError("""
+        fn foo/*caret*/(#[cfg(not(intellij_rust))] a: u32) {}
+    """, """Cannot perform refactoring.
+Cannot change signature of function with cfg-disabled parameters""")
+
+    @MockAdditionalCfgOptions("intellij_rust")
+    fun `test available if a parameter is cfg-enabled`() = doTest("""
+        fn foo/*caret*/(#[cfg(intellij_rust)] a: u32) {}
+    """, """
+        fn bar(#[cfg(intellij_rust)] a: u32) {}
+    """) {
+        name = "bar"
+    }
+
     fun `test rename function`() = doTest("""
         fn foo/*caret*/() {}
     """, """
@@ -440,6 +456,15 @@ class RsChangeSignatureTest : RsTestBase() {
             modifyConfig.invoke(config)
         }) {
             checkEditorAction(code, excepted, "ChangeSignature", trimIndent = false)
+        }
+    }
+
+    private fun checkError(@Language("Rust") code: String, errorMessage: String) {
+        try {
+            checkEditorAction(code, code, "ChangeSignature")
+            error("no error found, expected $errorMessage")
+        } catch (e: Exception) {
+            assertEquals(errorMessage, e.message)
         }
     }
 }

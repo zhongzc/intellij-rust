@@ -8,15 +8,20 @@ package org.rust.ide.refactoring.changeSignature
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.NlsContexts
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.refactoring.RefactoringBundle
 import com.intellij.refactoring.RefactoringFactory
 import com.intellij.refactoring.changeSignature.ChangeInfo
 import com.intellij.refactoring.changeSignature.ChangeSignatureHandler
 import com.intellij.refactoring.changeSignature.ChangeSignatureProcessorBase
+import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.usageView.BaseUsageViewDescriptor
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewDescriptor
+import org.jetbrains.annotations.NotNull
+import org.rust.RsBundle
 import org.rust.ide.presentation.renderInsertionSafe
 import org.rust.ide.refactoring.findBinding
 import org.rust.lang.core.psi.*
@@ -24,6 +29,7 @@ import org.rust.lang.core.psi.RsElementTypes.COMMA
 import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
+import org.rust.openapiext.editor
 import org.rust.openapiext.elementUnderCaretInEditor
 import org.rust.stdext.mapToMutableList
 
@@ -34,19 +40,39 @@ class RsChangeSignatureHandler : ChangeSignatureHandler {
 
     override fun invoke(project: Project, elements: Array<out PsiElement>, dataContext: DataContext?) {
         val function = elements.singleOrNull() as? RsFunction ?: return
-        showRefactoringDialog(function)
+        showRefactoringDialog(function, dataContext?.editor)
     }
 
     override fun invoke(project: Project, editor: Editor?, file: PsiFile?, dataContext: DataContext?) {
         val function = dataContext?.elementUnderCaretInEditor as? RsFunction ?: return
-        showRefactoringDialog(function)
+        showRefactoringDialog(function, editor)
     }
 
-    private fun showRefactoringDialog(function: RsFunction) {
+    private fun showRefactoringDialog(function: RsFunction, editor: Editor?) {
         val config = RsFunctionSignatureConfig.create(function)
         val project = function.project
 
-        showChangeFunctionSignatureDialog(project, config)
+        val error = checkFunction(function)
+        if (error == null) {
+            showChangeFunctionSignatureDialog(project, config)
+        } else if (editor != null) {
+            showCannotRefactorErrorHint(project, editor, error)
+        }
+    }
+
+    private fun showCannotRefactorErrorHint(project: Project, editor: Editor, message: String) {
+        CommonRefactoringUtil.showErrorHint(project, editor,
+            RefactoringBundle.getCannotRefactorMessage(message),
+            RefactoringBundle.message("changeSignature.refactoring.name"),
+            "refactoring.renameRefactorings"
+        )
+    }
+
+    private fun checkFunction(function: RsFunction): String? {
+        if (function.valueParameters != function.rawValueParameters) {
+            return RsBundle.message("refactoring.change.signature.error.cfg.disabled.parameters")
+        }
+        return null
     }
 }
 
