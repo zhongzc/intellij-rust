@@ -11,11 +11,15 @@ import com.intellij.refactoring.changeSignature.ChangeInfo
 import com.intellij.refactoring.changeSignature.ParameterInfo
 import com.intellij.refactoring.changeSignature.ParameterInfo.NEW_PARAMETER
 import org.rust.ide.presentation.renderInsertionSafe
-import org.rust.ide.refactoring.extractFunction.dependTypes
-import org.rust.ide.refactoring.extractFunction.types
+import org.rust.ide.refactoring.RsFunctionSignatureConfig
 import org.rust.lang.RsLanguage
-import org.rust.lang.core.psi.*
-import org.rust.lang.core.psi.ext.*
+import org.rust.lang.core.psi.RsFunction
+import org.rust.lang.core.psi.RsPat
+import org.rust.lang.core.psi.RsPsiFactory
+import org.rust.lang.core.psi.RsVis
+import org.rust.lang.core.psi.ext.isAsync
+import org.rust.lang.core.psi.ext.returnType
+import org.rust.lang.core.psi.ext.valueParameters
 import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.ty.TyUnknown
@@ -25,7 +29,7 @@ import org.rust.lang.core.types.type
  * This class just holds [config], otherwise it is unimplemented.
  * It is required by [com.intellij.refactoring.changeSignature.ChangeSignatureProcessorBase].
  */
-class RsSignatureChangeInfo(val config: RsFunctionSignatureConfig): ChangeInfo {
+class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : ChangeInfo {
     override fun getNewParameters(): Array<ParameterInfo> = arrayOf()
     override fun isParameterSetOrOrderChanged(): Boolean = false
     override fun isParameterTypesChanged(): Boolean = false
@@ -41,7 +45,7 @@ class RsSignatureChangeInfo(val config: RsFunctionSignatureConfig): ChangeInfo {
 
 /**
  * This type needs to be comparable by identity, not value.
-  */
+ */
 class Parameter(var pat: RsPat, var type: Ty, val index: Int = NEW_PARAMETER) {
     val patText: String
         get() = pat.text
@@ -54,15 +58,15 @@ class Parameter(var pat: RsPat, var type: Ty, val index: Int = NEW_PARAMETER) {
  * After the dialog finishes, the refactoring will compare the state of the original function with the modified config
  * and perform the necessary adjustments.
  */
-class RsFunctionSignatureConfig private constructor(
-    val function: RsFunction,
+class RsChangeFunctionSignatureConfig private constructor(
+    function: RsFunction,
     var name: String,
     parameters: List<Parameter>,
-    var returnType: Ty,
+    override var returnType: Ty,
     var visibility: RsVis? = null,
     var isAsync: Boolean = false,
     var isUnsafe: Boolean = false
-) {
+) : RsFunctionSignatureConfig(function) {
     val originalParameters: List<Parameter> = parameters.toList()
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
@@ -85,53 +89,18 @@ class RsFunctionSignatureConfig private constructor(
         append(whereClausesText)
     }
 
-    private val typeParametersText: String
-        get() {
-            val typeParams = typeParameters()
-            if (typeParams.isEmpty()) return ""
-            return typeParams.joinToString(separator = ",", prefix = "<", postfix = ">") { it.text }
-        }
-
-    private val whereClausesText: String
-        get() {
-            val wherePredList = function.whereClause?.wherePredList ?: return ""
-            if (wherePredList.isEmpty()) return ""
-            val typeParams = typeParameters().map { it.declaredType }
-            if (typeParams.isEmpty()) return ""
-            val filtered = wherePredList.filter { it.typeReference?.type in typeParams }
-            if (filtered.isEmpty()) return ""
-            return filtered.joinToString(separator = ",", prefix = " where ") { it.text }
-        }
-
-    private fun typeParameters(): List<RsTypeParameter> {
-        val bounds = typeParameterBounds()
-        val paramAndReturnTypes = mutableSetOf<Ty>()
-        (parameters.map { it.type } + listOfNotNull(returnType)).forEach {
-            paramAndReturnTypes.addAll(it.types())
-            paramAndReturnTypes.addAll(it.dependTypes(bounds))
-        }
-        return function.typeParameters.filter { it.declaredType in paramAndReturnTypes }
-    }
-
-    private fun typeParameterBounds(): Map<Ty, Set<Ty>> =
-        function.typeParameters.associate { typeParameter ->
-            val type = typeParameter.declaredType
-            val bounds = mutableSetOf<Ty>()
-            typeParameter.bounds.flatMapTo(bounds) {
-                it.bound.traitRef?.path?.typeArguments?.flatMap { it.type.types() }.orEmpty()
-            }
-            type to bounds
-        }
+    override val parameterTypes: List<Ty>
+        get() = parameters.map { it.type }
 
     fun createChangeInfo(): ChangeInfo = RsSignatureChangeInfo(this)
 
     companion object {
-        fun create(function: RsFunction): RsFunctionSignatureConfig {
+        fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
             val factory = RsPsiFactory(function.project)
             val parameters = function.valueParameters.mapIndexed { index, parameter ->
                 Parameter(parameter.pat ?: factory.createPat("_"), parameter.typeReference?.type ?: TyUnknown, index)
             }
-            return RsFunctionSignatureConfig(
+            return RsChangeFunctionSignatureConfig(
                 function,
                 function.name.orEmpty(),
                 parameters,

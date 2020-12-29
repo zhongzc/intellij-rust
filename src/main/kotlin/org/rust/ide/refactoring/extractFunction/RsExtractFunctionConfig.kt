@@ -12,6 +12,7 @@ import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.siblings
 import org.rust.ide.presentation.renderInsertionSafe
+import org.rust.ide.refactoring.RsFunctionSignatureConfig
 import org.rust.ide.utils.findStatementsOrExprInRange
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.*
@@ -114,7 +115,7 @@ class Parameter private constructor(
 }
 
 class RsExtractFunctionConfig private constructor(
-    val containingFunction: RsFunction,
+    function: RsFunction,
     val elements: List<PsiElement>,
     val returnValue: ReturnValue? = null,
     var name: String = "",
@@ -122,7 +123,7 @@ class RsExtractFunctionConfig private constructor(
     val isAsync: Boolean = false,
     val isUnsafe: Boolean = false,
     var parameters: List<Parameter>
-) {
+): RsFunctionSignatureConfig(function) {
     val valueParameters: List<Parameter>
         get() = parameters.filter { !it.isSelf }
 
@@ -191,43 +192,11 @@ class RsExtractFunctionConfig private constructor(
             append(body)
         }
 
-    private val typeParametersText: String
-        get() {
-            val typeParams = typeParameters()
-            if (typeParams.isEmpty()) return ""
-            return typeParams.joinToString(separator = ",", prefix = "<", postfix = ">") { it.text }
-        }
+    override val parameterTypes: List<Ty>
+        get() = parameters.mapNotNull { it.type }
 
-    private val whereClausesText: String
-        get() {
-            val wherePredList = containingFunction.whereClause?.wherePredList ?: return ""
-            if (wherePredList.isEmpty()) return ""
-            val typeParams = typeParameters().map { it.declaredType }
-            if (typeParams.isEmpty()) return ""
-            val filtered = wherePredList.filter { it.typeReference?.type in typeParams }
-            if (filtered.isEmpty()) return ""
-            return filtered.joinToString(separator = ",", prefix = " where ") { it.text }
-        }
-
-    private fun typeParameters(): List<RsTypeParameter> {
-        val bounds = typeParameterBounds()
-        val paramAndReturnTypes = mutableSetOf<Ty>()
-        (parameters.mapNotNull { it.type } + listOfNotNull(returnValue?.type)).forEach {
-            paramAndReturnTypes.addAll(it.types())
-            paramAndReturnTypes.addAll(it.dependTypes(bounds))
-        }
-        return containingFunction.typeParameters.filter { it.declaredType in paramAndReturnTypes }
-    }
-
-    private fun typeParameterBounds(): Map<Ty, Set<Ty>> =
-        containingFunction.typeParameters.associate { typeParameter ->
-            val type = typeParameter.declaredType
-            val bounds = mutableSetOf<Ty>()
-            typeParameter.bounds.flatMapTo(bounds) {
-                it.bound.traitRef?.path?.typeArguments?.flatMap { it.type.types() }.orEmpty()
-            }
-            type to bounds
-        }
+    override val returnType: Ty
+        get() = returnValue?.type ?: TyUnit
 
     companion object {
         fun create(file: PsiFile, start: Int, end: Int): RsExtractFunctionConfig? {

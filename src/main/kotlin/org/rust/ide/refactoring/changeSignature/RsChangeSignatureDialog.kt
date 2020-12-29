@@ -15,7 +15,6 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.refactoring.BaseRefactoringProcessor
 import com.intellij.refactoring.changeSignature.*
-import com.intellij.refactoring.changeSignature.ParameterInfo.NEW_PARAMETER
 import com.intellij.refactoring.ui.ComboBoxVisibilityPanel
 import com.intellij.ui.EditorTextField
 import com.intellij.ui.components.CheckBox
@@ -44,13 +43,13 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 
-typealias ChangeFunctionSignatureMock = (config: RsFunctionSignatureConfig) -> Unit
+typealias ChangeFunctionSignatureMock = (config: RsChangeFunctionSignatureConfig) -> Unit
 
 private var MOCK: ChangeFunctionSignatureMock? = null
 
 fun showChangeFunctionSignatureDialog(
     project: Project,
-    config: RsFunctionSignatureConfig
+    config: RsChangeFunctionSignatureConfig
 ) {
     if (isUnitTestMode) {
         val mock = MOCK ?: error("You should set mock UI via `withMockChangeFunctionSignature`")
@@ -91,7 +90,7 @@ class SignatureParameter(val factory: RsPsiFactory, val parameter: Parameter) : 
     override fun setUseAnySingleVariable(b: Boolean) {}
 }
 
-class SignatureDescriptor(val config: RsFunctionSignatureConfig) : MethodDescriptor<SignatureParameter, String> {
+class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig) : MethodDescriptor<SignatureParameter, String> {
     val function: RsFunction = config.function
 
     override fun getName(): String = config.name
@@ -200,7 +199,7 @@ class ChangeSignatureDialog(project: Project, descriptor: SignatureDescriptor) :
         ModelItem,
         TableModel
         >(project, descriptor, false, descriptor.method) {
-    private val config: RsFunctionSignatureConfig
+    private val config: RsChangeFunctionSignatureConfig
         get() = myMethod.config
 
     private var visibilityField: EditorTextField? = null

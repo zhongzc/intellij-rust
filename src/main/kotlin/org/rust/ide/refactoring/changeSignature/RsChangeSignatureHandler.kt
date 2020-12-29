@@ -48,7 +48,7 @@ class RsChangeSignatureHandler : ChangeSignatureHandler {
     }
 
     private fun showRefactoringDialog(function: RsFunction, editor: Editor?) {
-        val config = RsFunctionSignatureConfig.create(function)
+        val config = RsChangeFunctionSignatureConfig.create(function)
         val project = function.project
 
         val error = checkFunction(function)
@@ -97,7 +97,7 @@ class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
         BaseUsageViewDescriptor(changeInfo.method)
 }
 
-private fun changeSignature(project: Project, config: RsFunctionSignatureConfig, function: RsFunction) {
+private fun changeSignature(project: Project, config: RsChangeFunctionSignatureConfig, function: RsFunction) {
     val usages = function.findCalls().toList()
     val factory = RsPsiFactory(project)
     val parameterOps = buildParameterOperations(config)
@@ -120,14 +120,14 @@ private fun changeSignature(project: Project, config: RsFunctionSignatureConfig,
     }
 }
 
-private fun rename(factory: RsPsiFactory, function: RsFunction, config: RsFunctionSignatureConfig) {
+private fun rename(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     function.identifier.replace(factory.createIdentifier(config.name))
 }
 
 private fun renameUsage(
     factory: RsPsiFactory,
     usage: RsElement,
-    config: RsFunctionSignatureConfig
+    config: RsChangeFunctionSignatureConfig
 ) {
     val identifier = factory.createIdentifier(config.name)
     when (usage) {
@@ -141,7 +141,7 @@ private fun renameUsage(
     }
 }
 
-private fun changeVisibility(function: RsFunction, config: RsFunctionSignatureConfig) {
+private fun changeVisibility(function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     if (function.vis?.text == config.visibility?.text) return
 
     function.vis?.delete()
@@ -152,7 +152,7 @@ private fun changeVisibility(function: RsFunction, config: RsFunctionSignatureCo
     }
 }
 
-private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config: RsFunctionSignatureConfig) {
+private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     if (function.returnType != config.returnType) {
         function.retType?.delete()
         if (config.returnType !is TyUnit) {
@@ -171,7 +171,7 @@ private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config
 private fun changeParameters(
     factory: RsPsiFactory,
     function: RsFunction,
-    config: RsFunctionSignatureConfig,
+    config: RsChangeFunctionSignatureConfig,
     parameterOps: List<ParameterOperation>
 ) {
     val parameters = function.valueParameterList ?: return
@@ -269,7 +269,7 @@ private fun changeArguments(factory: RsPsiFactory, usage: RsElement, parameterOp
     }
 }
 
-private fun changeAsync(factory: RsPsiFactory, function: RsFunction, config: RsFunctionSignatureConfig) {
+private fun changeAsync(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     val async = function.node.findChildByType(RsElementTypes.ASYNC)?.psi
     if (config.isAsync) {
         if (async == null) {
@@ -281,7 +281,7 @@ private fun changeAsync(factory: RsPsiFactory, function: RsFunction, config: RsF
     }
 }
 
-private fun changeUnsafe(factory: RsPsiFactory, function: RsFunction, config: RsFunctionSignatureConfig) {
+private fun changeUnsafe(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     if (config.isUnsafe) {
         if (function.unsafe == null) {
             val unsafe = factory.createUnsafeKeyword()
@@ -356,7 +356,7 @@ private fun deleteItem(originalList: List<RsElement>, index: Int) =
 /**
  * Builds a plan of operations that need to be performed for each original parameter/argument.
  */
-private fun buildParameterOperations(config: RsFunctionSignatureConfig): List<ParameterOperation> =
+private fun buildParameterOperations(config: RsChangeFunctionSignatureConfig): List<ParameterOperation> =
     config.parameters.withIndex().mapToMutableList { (index, parameter) ->
         val oldIndex = config.originalParameters.indexOf(parameter)
 

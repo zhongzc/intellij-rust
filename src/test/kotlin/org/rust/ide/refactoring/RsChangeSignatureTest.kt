@@ -11,7 +11,7 @@ import org.rust.MockEdition
 import org.rust.RsTestBase
 import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.ide.refactoring.changeSignature.Parameter
-import org.rust.ide.refactoring.changeSignature.RsFunctionSignatureConfig
+import org.rust.ide.refactoring.changeSignature.RsChangeFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
 import org.rust.lang.core.psi.RsPat
 import org.rust.lang.core.psi.RsPsiFactory
@@ -546,13 +546,13 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.add(Parameter(createPat("a"), findElementInEditor<RsStructItem>().declaredType))
     }
 
-    private fun RsFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
+    private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
         val param = parameters[a]
         parameters[a] = parameters[b]
         parameters[b] = param
     }
 
-    private fun RsFunctionSignatureConfig.setVisibility(vis: String) {
+    private fun RsChangeFunctionSignatureConfig.setVisibility(vis: String) {
         visibility = RsPsiFactory(project).createVis(vis)
     }
 
@@ -562,7 +562,7 @@ Cannot change signature of function with cfg-disabled parameters""")
 
     private fun doTest(@Language("Rust") code: String,
                        @Language("Rust") excepted: String,
-                       modifyConfig: RsFunctionSignatureConfig.() -> Unit) {
+                       modifyConfig: RsChangeFunctionSignatureConfig.() -> Unit) {
         withMockChangeFunctionSignature({ config ->
             modifyConfig.invoke(config)
         }) {
