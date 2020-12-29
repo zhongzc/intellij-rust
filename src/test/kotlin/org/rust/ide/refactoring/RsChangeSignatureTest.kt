@@ -32,6 +32,18 @@ Cannot change signature of function with cfg-disabled parameters""")
         name = "bar"
     }
 
+    fun `test do not change anything`() = doTest("""
+        async unsafe fn foo/*caret*/(a: u32, b: bool) -> u32 { 0 }
+        fn bar() {
+            unsafe { foo(1, true); }
+        }
+    """, """
+        async unsafe fn foo(a: u32, b: bool) -> u32 { 0 }
+        fn bar() {
+            unsafe { foo(1, true); }
+        }
+    """) {}
+
     fun `test rename function`() = doTest("""
         fn foo/*caret*/() {}
     """, """
