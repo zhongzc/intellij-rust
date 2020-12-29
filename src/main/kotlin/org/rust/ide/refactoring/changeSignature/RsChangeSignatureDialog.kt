@@ -70,7 +70,7 @@ fun withMockChangeFunctionSignature(mock: ChangeFunctionSignatureMock, action: (
     }
 }
 
-class SignatureParameter(val factory: RsPsiFactory, val parameter: Parameter) : ParameterInfo {
+private class SignatureParameter(val factory: RsPsiFactory, val parameter: Parameter) : ParameterInfo {
     override fun getName(): String = parameter.patText
     override fun getOldIndex(): Int = parameter.index
     override fun getDefaultValue(): String? = null
@@ -90,7 +90,7 @@ class SignatureParameter(val factory: RsPsiFactory, val parameter: Parameter) : 
     override fun setUseAnySingleVariable(b: Boolean) {}
 }
 
-class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig) : MethodDescriptor<SignatureParameter, String> {
+private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig) : MethodDescriptor<SignatureParameter, String> {
     val function: RsFunction = config.function
 
     override fun getName(): String = config.name
@@ -116,7 +116,7 @@ class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig) : MethodD
     override fun canChangeReturnType(): MethodDescriptor.ReadWriteOption = MethodDescriptor.ReadWriteOption.ReadWrite
 }
 
-class ModelItem(val function: RsFunction, parameter: SignatureParameter)
+private class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     : ParameterTableModelItemBase<SignatureParameter>(
     parameter,
     createTypeCodeFragment(function, parameter.parameter.type),
@@ -125,7 +125,7 @@ class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     override fun isEllipsisType(): Boolean = false
 }
 
-class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -> Unit)
+private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -> Unit)
     : ParameterTableModelBase<SignatureParameter, ModelItem>(
     descriptor.function,
     descriptor.function,
@@ -191,7 +191,7 @@ class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -> Unit)
     }
 }
 
-class ChangeSignatureDialog(project: Project, descriptor: SignatureDescriptor) :
+private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescriptor) :
     ChangeSignatureDialogBase<SignatureParameter,
         RsFunction,
         String,
