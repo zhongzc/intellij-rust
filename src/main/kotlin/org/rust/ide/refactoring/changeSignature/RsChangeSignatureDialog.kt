@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapiext.isUnitTestMode
 import com.intellij.psi.PsiCodeFragment
 import com.intellij.psi.PsiDocumentManager
@@ -16,7 +17,6 @@ import com.intellij.psi.PsiElement
 import com.intellij.refactoring.BaseRefactoringProcessor
 import com.intellij.refactoring.changeSignature.*
 import com.intellij.refactoring.ui.ComboBoxVisibilityPanel
-import com.intellij.ui.EditorTextField
 import com.intellij.ui.components.CheckBox
 import com.intellij.ui.layout.panel
 import com.intellij.ui.treeStructure.Tree
@@ -25,9 +25,7 @@ import org.jetbrains.annotations.TestOnly
 import org.rust.ide.presentation.render
 import org.rust.ide.refactoring.isValidRustVariableIdentifier
 import org.rust.lang.RsFileType
-import org.rust.lang.core.psi.RsFunction
-import org.rust.lang.core.psi.RsPsiFactory
-import org.rust.lang.core.psi.RsTypeReferenceCodeFragment
+import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.RsElement
 import org.rust.lang.core.psi.ext.returnType
 import org.rust.lang.core.types.ty.Ty
@@ -35,10 +33,7 @@ import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
 import org.rust.openapiext.document
 import org.rust.stdext.mapToMutableList
-import java.awt.BorderLayout
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
-import java.awt.Insets
+import java.awt.*
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -202,7 +197,7 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
     private val config: RsChangeFunctionSignatureConfig
         get() = myMethod.config
 
-    private var visibilityField: EditorTextField? = null
+    private var visibilityComboBox: VisibilityComboBox? = null
 
     override fun getFileType(): LanguageFileType = RsFileType
 
@@ -213,16 +208,10 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         val visibilityLabel = JLabel("Visibility:")
         visibilityPanel.add(visibilityLabel, BorderLayout.NORTH)
 
-        val visField = EditorTextField(config.visibility?.text.orEmpty())
-        visibilityLabel.labelFor = visField
-        visField.setPreferredWidth(100)
-        visField.addDocumentListener(object : DocumentListener {
-            override fun documentChanged(event: DocumentEvent) {
-                updateSignature()
-            }
-        })
-        visibilityPanel.add(visField, BorderLayout.SOUTH)
-        visibilityField = visField
+        val visibility = VisibilityComboBox(project, config.visibility) { updateSignature() }
+        visibilityLabel.labelFor = visibility.component
+        visibilityPanel.add(visibility.component, BorderLayout.SOUTH)
+        visibilityComboBox = visibility
 
         // Place visibility before function name
         val nameLayout = panel.layout as GridBagLayout
@@ -309,16 +298,9 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
             }
         }
 
-        val visField = visibilityField
+        val visField = visibilityComboBox
         if (visField != null) {
-            val visibilityText = visField.text
-            if (visibilityText.isBlank()) {
-                config.visibility = null
-            } else {
-                val vis = RsPsiFactory(config.function.project).tryCreateVis(visibilityText)
-                    ?: return "Function visibility is invalid"
-                config.visibility = vis
-            }
+            config.visibility = visField.visibility
         }
 
         return null
@@ -335,8 +317,41 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
 
 private fun createTypeCodeFragment(context: RsElement, type: Ty): PsiCodeFragment = RsTypeReferenceCodeFragment(
     context.project,
-    type.render(includeTypeArguments = true, includeLifetimeArguments = true),
+    type.render(includeTypeArguments = true, includeLifetimeArguments = true, skipUnchangedDefaultTypeArguments = true),
     context = context
 )
 
 private fun validateName(name: String): Boolean = name.isNotBlank() && isValidRustVariableIdentifier(name)
+
+private class VisibilityComboBox(project: Project, initialVis: RsVis?, onChange: () -> Unit) {
+    private val combobox: ComboBox<String> = ComboBox<String>(createVisibilityHints(initialVis), 80)
+    private val factory: RsPsiFactory = RsPsiFactory(project)
+
+    val component: JComponent = combobox
+
+    // TODO: add red underline/error if the visibility cannot be parsed (now it falls back to private)
+    val visibility: RsVis?
+        get() = factory.tryCreateVis(combobox.selectedItem as String)
+
+    init {
+        combobox.isEditable = true
+        combobox.selectedItem = initialVis?.text.orEmpty()
+        combobox.addActionListener {
+            onChange()
+        }
+    }
+}
+
+private fun createVisibilityHints(initialVis: RsVis?): Array<String> {
+    val options = mutableListOf(
+        "",
+        "pub",
+        "pub(crate)"
+    )
+    val initialText = initialVis?.text.orEmpty()
+    if (initialText !in options) {
+        options.add(0, initialText)
+    }
+
+    return options.toTypedArray()
+}
