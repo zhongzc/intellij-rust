@@ -161,12 +161,7 @@ private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config
     if (function.returnType != config.returnType) {
         function.retType?.delete()
         if (config.returnType !is TyUnit) {
-            val ret = factory.createRetType(config.returnType.renderInsertionSafe(
-                context = function,
-                includeLifetimeArguments = true,
-                useAliasNames = true,
-                skipUnchangedDefaultTypeArguments = true
-            ))
+            val ret = factory.createRetType(config.renderType(config.returnType))
             function.addAfter(ret, function.valueParameterList)
             importTypeReferencesFromTy(function, config.returnType, useAliases = true)
         }
@@ -184,12 +179,7 @@ private fun changeParameters(
     val originalParameters = parameters.copy() as RsValueParameterList
 
     fun createType(parameter: Parameter): RsTypeReference =
-        factory.tryCreateType(parameter.type.renderInsertionSafe(
-            context = function,
-            includeLifetimeArguments = true,
-            useAliasNames = true,
-            skipUnchangedDefaultTypeArguments = true
-        )) ?: factory.createType("()")
+        factory.tryCreateType(config.renderType(parameter.type)) ?: factory.createType("()")
 
     cycle@ for ((index, data) in config.parameters.zip(parameterOps).withIndex()) {
         val (parameter, op) = data

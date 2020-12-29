@@ -70,8 +70,17 @@ class RsChangeFunctionSignatureConfig private constructor(
     val originalParameters: List<Parameter> = parameters.toList()
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
+    fun renderType(type: Ty): String {
+        return type.renderInsertionSafe(
+            context = function,
+            includeLifetimeArguments = true,
+            useAliasNames = true,
+            skipUnchangedDefaultTypeArguments = true
+        )
+    }
+
     private val parametersText: String
-        get() = parameters.joinToString(", ") { "${it.patText}: ${it.type.renderInsertionSafe()}" }
+        get() = parameters.joinToString(", ") { "${it.patText}: ${renderType(it.type)}" }
 
     fun signature(): String = buildString {
         visibility?.let { append("${it.text} ") }
@@ -84,7 +93,7 @@ class RsChangeFunctionSignatureConfig private constructor(
         }
         append("fn $name$typeParametersText($parametersText)")
         if (returnType !is TyUnit) {
-            append(" -> ${returnType.renderInsertionSafe()}")
+            append(" -> ${renderType(returnType)}")
         }
         append(whereClausesText)
     }

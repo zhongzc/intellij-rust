@@ -16,8 +16,11 @@ import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
 import org.rust.lang.core.psi.RsPat
 import org.rust.lang.core.psi.RsPsiFactory
 import org.rust.lang.core.psi.RsStructItem
+import org.rust.lang.core.psi.RsValueParameter
 import org.rust.lang.core.types.ty.TyInteger
+import org.rust.lang.core.types.ty.TyReference
 import org.rust.lang.core.types.ty.TyUnit
+import org.rust.lang.core.types.type
 
 class RsChangeSignatureTest : RsTestBase() {
     @MockAdditionalCfgOptions("intellij_rust")
@@ -159,6 +162,31 @@ Cannot change signature of function with cfg-disabled parameters""")
         returnType = TyInteger.U32
     }
 
+    fun `test add return type with lifetime`() = doTest("""
+        fn foo/*caret*/<'a>(a: &'a u32) { a }
+                          //^
+    """, """
+        fn foo/*caret*/<'a>(a: &'a u32) -> &'a u32 { a }
+                          //^
+    """) {
+        val parameter = findElementInEditor<RsValueParameter>()
+        val type = parameter.typeReference?.type as TyReference
+        returnType = type
+    }
+
+    fun `test add return type with default type arguments`() = doTest("""
+        struct S<T, R=u32>(T, R);
+        fn foo/*caret*/(s: S<bool>) { unimplemented!() }
+                      //^
+    """, """
+        struct S<T, R=u32>(T, R);
+        fn foo/*caret*/(s: S<bool>) -> S<bool> { unimplemented!() }
+                      //^
+    """) {
+        val parameter = findElementInEditor<RsValueParameter>()
+        returnType = parameter.typeReference?.type!!
+    }
+
     fun `test remove return type`() = doTest("""
         fn foo/*caret*/() -> u32 { 0 }
     """, """
@@ -296,6 +324,30 @@ Cannot change signature of function with cfg-disabled parameters""")
     """) {
         parameters.add(Parameter(createPat("b"), TyInteger.U32))
         parameters.add(Parameter(createPat("c"), TyInteger.U32))
+    }
+
+    fun `test add parameter with lifetime`() = doTest("""
+        fn foo/*caret*/<'a>(a: &'a u32) {}
+                          //^
+    """, """
+        fn foo/*caret*/<'a>(a: &'a u32, b: &'a u32) {}
+                          //^
+    """) {
+        val parameter = findElementInEditor<RsValueParameter>()
+        parameters.add(Parameter(createPat("b"), parameter.typeReference!!.type))
+    }
+
+    fun `test add parameter with default type arguments`() = doTest("""
+        struct S<T, R=u32>(T, R);
+        fn foo/*caret*/(a: S<bool>) { unimplemented!() }
+                      //^
+    """, """
+        struct S<T, R=u32>(T, R);
+        fn foo/*caret*/(a: S<bool>, b: S<bool>) { unimplemented!() }
+                      //^
+    """) {
+        val parameter = findElementInEditor<RsValueParameter>()
+        parameters.add(Parameter(createPat("b"), parameter.typeReference!!.type))
     }
 
     fun `test add parameter to method`() = doTest("""
