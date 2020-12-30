@@ -77,7 +77,7 @@ class RsChangeSignatureHandler : ChangeSignatureHandler {
 
 class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
     : ChangeSignatureProcessorBase(project, changeInfo) {
-    override fun performRefactoring(usages: Array<out UsageInfo>?) {
+    override fun performRefactoring(usages: Array<out UsageInfo>) {
         val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return
         val config = rsChangeInfo.config
         val function = config.function
@@ -86,20 +86,33 @@ class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
         if (function.owner is RsAbstractableOwner.Trait) {
             function.searchForImplementations().forEach {
                 val overridden = (it as? RsFunction) ?: return@forEach
-                changeSignature(project, config, overridden)
+                changeSignature(project, config, overridden, null)
             }
         }
 
-        changeSignature(project, config, function)
+        changeSignature(project, config, function, usages.mapNotNull { it.element as? RsElement })
+    }
+
+    override fun findUsages(): Array<UsageInfo> {
+        val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return emptyArray()
+        return rsChangeInfo.config.function.findUsages().map {
+            UsageInfo(it)
+        }.toList().toTypedArray()
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>?): UsageViewDescriptor =
         BaseUsageViewDescriptor(changeInfo.method)
 }
 
-private fun changeSignature(project: Project, config: RsChangeFunctionSignatureConfig, function: RsFunction) {
-    val callUsages = function.findCalls().toList()
-    val referenceUsages = function.findReferenceUsages().toList()
+private fun changeSignature(
+    project: Project,
+    config: RsChangeFunctionSignatureConfig,
+    function: RsFunction,
+    usages: List<RsElement>?
+) {
+    // TODO: find all usages before calling this function
+    val actualUsages = usages ?: function.findUsages().toList()
+
     val factory = RsPsiFactory(project)
     val parameterOps = buildParameterOperations(config)
     val nameChanged = config.name != function.name
@@ -113,18 +126,18 @@ private fun changeSignature(project: Project, config: RsChangeFunctionSignatureC
     changeAsync(factory, function, config)
     changeUnsafe(factory, function, config)
 
-    callUsages.forEach {
+    actualUsages.forEach {
         if (nameChanged) {
             renameUsage(factory, it, config)
         }
-        changeArguments(factory, it, parameterOps)
-    }
-    if (nameChanged) {
-        referenceUsages.forEach {
-            renameUsage(factory, it, config)
+        if (it.isCallUsage) {
+            changeArguments(factory, it, parameterOps)
         }
     }
 }
+
+private val RsElement.isCallUsage: Boolean
+    get () = this is RsCallExpr || this is RsMethodCall
 
 private fun rename(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     function.identifier.replace(factory.createIdentifier(config.name))
