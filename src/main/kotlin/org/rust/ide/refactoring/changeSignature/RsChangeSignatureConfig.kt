@@ -67,7 +67,6 @@ class RsChangeFunctionSignatureConfig private constructor(
     var isAsync: Boolean = false,
     var isUnsafe: Boolean = false
 ) : RsFunctionSignatureConfig(function) {
-    val originalParameters: List<Parameter> = parameters.toList()
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
     fun renderType(type: Ty): String {

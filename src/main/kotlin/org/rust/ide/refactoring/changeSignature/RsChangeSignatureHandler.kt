@@ -15,6 +15,7 @@ import com.intellij.refactoring.RefactoringBundle
 import com.intellij.refactoring.changeSignature.ChangeInfo
 import com.intellij.refactoring.changeSignature.ChangeSignatureHandler
 import com.intellij.refactoring.changeSignature.ChangeSignatureProcessorBase
+import com.intellij.refactoring.changeSignature.ParameterInfo.NEW_PARAMETER
 import com.intellij.refactoring.util.CommonRefactoringUtil
 import com.intellij.usageView.BaseUsageViewDescriptor
 import com.intellij.usageView.UsageInfo
@@ -162,7 +163,7 @@ private fun changeSignature(
             renameFunctionUsage(factory, it, config)
         }
         if (it.isCallUsage) {
-            changeArguments(factory, it, parameterOps)
+            changeArguments(factory, function, it, parameterOps)
         }
     }
 }
@@ -237,7 +238,7 @@ private fun changeParameters(
 
                 val typeReference = createType(parameter)
                 val newParameter = factory.createValueParameter(parameter.patText, typeReference, reference = false)
-                val anchor = findAnchorToInsertItem(parameters, index)
+                val anchor = findAnchorToInsertItem(parameters, function, index)
                 insertItemWithComma(factory, newParameter, parameters, anchor)
                 importTypeReferencesFromTy(function, parameter.type, useAliases = true)
             }
@@ -246,7 +247,7 @@ private fun changeParameters(
 
                 val originalParameter = originalParameters.valueParameterList.getOrNull(op.originalIndex)
                     ?: continue@cycle
-                val anchor = findAnchorToInsertItem(parameters, index)
+                val anchor = findAnchorToInsertItem(parameters, function, index)
                 insertItemWithComma(factory, originalParameter, parameters, anchor)
             }
         }
@@ -279,23 +280,35 @@ private fun changeParameters(
     }
 }
 
-private fun changeArguments(factory: RsPsiFactory, usage: Usage, parameterOps: List<ParameterOperation>) {
+private fun changeArguments(
+    factory: RsPsiFactory,
+    function: RsFunction,
+    usage: Usage,
+    parameterOps: List<ParameterOperation>
+) {
     val arguments = when (usage) {
         is Usage.FunctionCall -> usage.call.valueArgumentList
         is Usage.MethodCall -> usage.call.valueArgumentList
         else -> error("unreachable")
     }
 
-    val argumentList = arguments.exprList.toList()
-    val originalArguments = arguments.copy() as RsValueArgumentList
+    // Skip over explicit self parameter in UFCS
+    val offset = if (usage is Usage.FunctionCall && function.isMethod) {
+        1
+    } else {
+        0
+    }
+    val argumentList = arguments.exprList.drop(offset).toList()
+    val originalArgumentList = (arguments.copy() as RsValueArgumentList).exprList.drop(offset).toList()
+    val argumentCount = argumentList.size
 
     cycle@ for ((index, op) in parameterOps.withIndex()) {
         when (op) {
             is ParameterOperation.Add -> {
                 // We had an argument on this position, reset it
                 // TODO: remove also surrounding whitespace and comments
-                if (index < arguments.exprList.size) {
-                    arguments.exprList[index].delete()
+                if (index < argumentList.size) {
+                    argumentList[index].delete()
                 } else if (arguments.exprList.isNotEmpty()) {
                     // This argument is new, add comma
                     arguments.addBefore(factory.createComma(), arguments.rparen ?: continue@cycle)
@@ -304,15 +317,15 @@ private fun changeArguments(factory: RsPsiFactory, usage: Usage, parameterOps: L
             is ParameterOperation.Move -> {
                 deleteItem(argumentList, index)
 
-                val originalArgument = originalArguments.exprList.getOrNull(op.originalIndex) ?: continue@cycle
-                val anchor = findAnchorToInsertItem(arguments, index)
+                val originalArgument = originalArgumentList.getOrNull(op.originalIndex) ?: continue@cycle
+                val anchor = findAnchorToInsertItem(arguments, function, index)
                 insertItemWithComma(factory, originalArgument, arguments, anchor)
             }
         }
     }
 
     // Remove remaining arguments
-    for (index in parameterOps.size until argumentList.size) {
+    for (index in parameterOps.size until argumentCount) {
         deleteItem(argumentList, index)
     }
 }
@@ -400,14 +413,34 @@ private fun insertItemWithComma(
 
 /**
  * Finds an element after which we should insert a parameter/argument so that it ends up at `index` position.
+ * Skips over self parameter in methods.
  */
-private fun findAnchorToInsertItem(items: PsiElement, index: Int): PsiElement? {
-    val commas = items.childrenWithLeaves.filter { it.elementType == COMMA }.toList()
+private fun findAnchorToInsertItem(items: PsiElement, function: RsFunction, index: Int): PsiElement? {
+    // Skip over self and potentially its following comma
+    val firstChild = when (items) {
+        is RsValueParameterList -> skipFirstItem(items, items.selfParameter)
+        is RsValueArgumentList -> {
+            // UFCS
+            if (items.parent is RsCallExpr && function.isMethod) {
+                skipFirstItem(items, items.exprList.getOrNull(0))
+            } else {
+                items.firstChild
+            }
+        }
+        else -> error("unreachable")
+    }
+
+    val commas = firstChild.rightSiblings.filter { it.elementType == COMMA }.toList()
     return when {
-        index == 0 -> (items as? RsValueParameterList)?.selfParameter ?: items.firstChild
+        index == 0 -> firstChild
         commas.size < index -> items.lastChild.prevSibling
         else -> commas[index - 1]
     }
+}
+private fun skipFirstItem(itemHolder: RsElement, potentialFirstItem: PsiElement?): PsiElement = when {
+    potentialFirstItem == null -> itemHolder.firstChild
+    potentialFirstItem.nextSibling.elementType == COMMA -> potentialFirstItem.nextSibling
+    else -> potentialFirstItem
 }
 
 private fun deleteItem(originalList: List<RsElement>, index: Int) =
@@ -418,11 +451,9 @@ private fun deleteItem(originalList: List<RsElement>, index: Int) =
  */
 private fun buildParameterOperations(config: RsChangeFunctionSignatureConfig): List<ParameterOperation> =
     config.parameters.withIndex().mapToMutableList { (index, parameter) ->
-        val oldIndex = config.originalParameters.indexOf(parameter)
-
         when {
-            oldIndex == -1 -> ParameterOperation.Add
-            oldIndex != index -> ParameterOperation.Move(oldIndex)
+            parameter.index == NEW_PARAMETER -> ParameterOperation.Add
+            parameter.index != index -> ParameterOperation.Move(parameter.index)
             else -> ParameterOperation.Keep
         }
     }

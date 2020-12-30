@@ -384,6 +384,86 @@ Cannot change signature of function with cfg-disabled parameters""")
         swapParameters(0, 1)
     }
 
+    fun `test swap method parameters`() = doTest("""
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, a: u32, b: u32) {}
+        }
+        fn bar(s: S) {
+            s.foo(0, 1);
+        }
+    """, """
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, b: u32, a: u32) {}
+        }
+        fn bar(s: S) {
+            s.foo(1, 0);
+        }
+    """) {
+        swapParameters(0, 1)
+    }
+
+    fun `test swap method parameters UFCS`() = doTest("""
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, a: u32, b: u32) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s, 0, 1);
+        }
+    """, """
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, b: u32, a: u32) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s, 1, 0);
+        }
+    """) {
+        swapParameters(0, 1)
+    }
+
+    fun `test add method parameter UFCS`() = doTest("""
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s);
+        }
+    """, """
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, a: u32) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s, );
+        }
+    """) {
+        parameters.add(Parameter(createPat("a"), TyInteger.U32))
+    }
+
+    fun `test delete method parameter UFCS`() = doTest("""
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, a: u32, b: u32) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s, 0, 1);
+        }
+    """, """
+        struct S;
+        impl S {
+            fn foo/*caret*/(&self, b: u32) {}
+        }
+        fn bar(s: S) {
+            S::foo(&s, 1);
+        }
+    """) {
+        parameters.removeAt(0)
+    }
+
     /*fun `test swap parameters with comments`() = doTest("""
         fn foo/*caret*/( /*a0*/ a /*a1*/ : u32, /*b0*/ b: u32 /*b1*/) {}
         fn bar() {
