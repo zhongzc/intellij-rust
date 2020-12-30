@@ -10,8 +10,8 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.refactoring.RefactoringBundle
-import com.intellij.refactoring.RefactoringFactory
 import com.intellij.refactoring.changeSignature.ChangeInfo
 import com.intellij.refactoring.changeSignature.ChangeSignatureHandler
 import com.intellij.refactoring.changeSignature.ChangeSignatureProcessorBase
@@ -20,7 +20,6 @@ import com.intellij.usageView.BaseUsageViewDescriptor
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewDescriptor
 import org.rust.RsBundle
-import org.rust.ide.presentation.renderInsertionSafe
 import org.rust.ide.refactoring.findBinding
 import org.rust.ide.utils.import.RsImportHelper.importTypeReferencesFromTy
 import org.rust.lang.core.psi.*
@@ -86,33 +85,65 @@ class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
         if (function.owner is RsAbstractableOwner.Trait) {
             function.searchForImplementations().forEach {
                 val overridden = (it as? RsFunction) ?: return@forEach
-                changeSignature(project, config, overridden, null)
+                changeSignature(project, config, overridden, findFunctionUsages(overridden))
             }
         }
 
-        changeSignature(project, config, function, usages.mapNotNull { it.element as? RsElement })
+        changeSignature(project, config, function, usages.mapNotNull { it as? Usage })
     }
 
     override fun findUsages(): Array<UsageInfo> {
         val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return emptyArray()
-        return rsChangeInfo.config.function.findUsages().map {
-            UsageInfo(it)
-        }.toList().toTypedArray()
+        val function = rsChangeInfo.config.function
+        return findFunctionUsages(function).toTypedArray()
     }
 
     override fun createUsageViewDescriptor(usages: Array<out UsageInfo>?): UsageViewDescriptor =
         BaseUsageViewDescriptor(changeInfo.method)
 }
 
+private sealed class Usage(element: RsElement) : UsageInfo(element) {
+    open val isCallUsage: Boolean = false
+
+    class FunctionCall(val call: RsCallExpr) : Usage(call) {
+        override val isCallUsage: Boolean = true
+    }
+
+    class MethodCall(val call: RsMethodCall) : Usage(call) {
+        override val isCallUsage: Boolean = true
+    }
+
+    class Reference(val path: RsPath) : Usage(path)
+    class Parameter(val parameter: RsValueParameter, usage: RsElement) : Usage(usage)
+}
+
+private fun findFunctionUsages(function: RsFunction): List<Usage> {
+    val functionUsages = function.findUsages().map {
+        when (it) {
+            is RsCallExpr -> Usage.FunctionCall(it)
+            is RsMethodCall -> Usage.MethodCall(it)
+            is RsPath -> Usage.Reference(it)
+            else -> error("unreachable")
+        }
+    }.toList()
+    val parameterUsages = function.valueParameters.flatMap { parameter ->
+        val binding = (parameter.pat as? RsPatIdent)?.patBinding ?: return@flatMap emptyList()
+        ReferencesSearch.search(binding, binding.useScope)
+            .mapNotNull {
+                Usage.Parameter(parameter, it.element as? RsElement ?: return@mapNotNull null)
+            }
+    }
+
+    return functionUsages + parameterUsages
+}
+
 private fun changeSignature(
     project: Project,
     config: RsChangeFunctionSignatureConfig,
     function: RsFunction,
-    usages: List<RsElement>?
+    usages: List<Usage>
 ) {
     // TODO: find all usages before calling this function
-    val actualUsages = usages ?: function.findUsages().toList()
-
     val factory = RsPsiFactory(project)
     val parameterOps = buildParameterOperations(config)
     val nameChanged = config.name != function.name
@@ -122,13 +153,13 @@ private fun changeSignature(
     }
     changeVisibility(function, config)
     changeReturnType(factory, function, config)
-    changeParameters(factory, function, config, parameterOps)
+    changeParameters(factory, function, config, usages, parameterOps)
     changeAsync(factory, function, config)
     changeUnsafe(factory, function, config)
 
-    actualUsages.forEach {
+    usages.forEach {
         if (nameChanged) {
-            renameUsage(factory, it, config)
+            renameFunctionUsage(factory, it, config)
         }
         if (it.isCallUsage) {
             changeArguments(factory, it, parameterOps)
@@ -136,26 +167,23 @@ private fun changeSignature(
     }
 }
 
-private val RsElement.isCallUsage: Boolean
-    get () = this is RsCallExpr || this is RsMethodCall
-
 private fun rename(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     function.identifier.replace(factory.createIdentifier(config.name))
 }
 
-private fun renameUsage(
+private fun renameFunctionUsage(
     factory: RsPsiFactory,
-    usage: RsElement,
+    usage: Usage,
     config: RsChangeFunctionSignatureConfig
 ) {
     val identifier = factory.createIdentifier(config.name)
     when (usage) {
-        is RsPath -> usage.referenceNameElement?.replace(identifier)
-        is RsCallExpr -> {
-            val path = (usage.expr as? RsPathExpr)?.path ?: return
+        is Usage.Reference -> usage.path.referenceNameElement?.replace(identifier)
+        is Usage.FunctionCall -> {
+            val path = (usage.call.expr as? RsPathExpr)?.path ?: return
             path.referenceNameElement?.replace(identifier)
         }
-        is RsMethodCall -> usage.identifier.replace(identifier)
+        is Usage.MethodCall -> usage.call.identifier.replace(identifier)
     }
 }
 
@@ -185,11 +213,18 @@ private fun changeParameters(
     factory: RsPsiFactory,
     function: RsFunction,
     config: RsChangeFunctionSignatureConfig,
+    usages: List<Usage>,
     parameterOps: List<ParameterOperation>
 ) {
     val parameters = function.valueParameterList ?: return
     val parameterList = parameters.valueParameterList.toList()
     val originalParameters = parameters.copy() as RsValueParameterList
+    val parameterUsageMap = mutableMapOf<RsValueParameter, MutableList<Usage.Parameter>>()
+    for (usage in usages) {
+        if (usage is Usage.Parameter) {
+            parameterUsageMap.getOrPut(usage.parameter) { mutableListOf() }.add(usage)
+        }
+    }
 
     fun createType(parameter: Parameter): RsTypeReference =
         factory.tryCreateType(config.renderType(parameter.type)) ?: factory.createType("()")
@@ -221,7 +256,12 @@ private fun changeParameters(
                 val currentParameter = parameters.valueParameterList[index]
                 if (parameter.pat.text != currentParameter.pat?.text) {
                     if (parameter.pat is RsPatIdent && currentParameter.pat is RsPatIdent) {
-                        renameParameter(function.project, currentParameter, parameter.patText)
+                        renameParameter(
+                            function.project,
+                            currentParameter,
+                            parameterUsageMap[currentParameter].orEmpty(),
+                            parameter.patText
+                        )
                     } else {
                         currentParameter.pat?.replace(parameter.pat)
                     }
@@ -239,10 +279,10 @@ private fun changeParameters(
     }
 }
 
-private fun changeArguments(factory: RsPsiFactory, usage: RsElement, parameterOps: List<ParameterOperation>) {
+private fun changeArguments(factory: RsPsiFactory, usage: Usage, parameterOps: List<ParameterOperation>) {
     val arguments = when (usage) {
-        is RsCallExpr -> usage.valueArgumentList
-        is RsMethodCall -> usage.valueArgumentList
+        is Usage.FunctionCall -> usage.call.valueArgumentList
+        is Usage.MethodCall -> usage.call.valueArgumentList
         else -> error("unreachable")
     }
 
@@ -300,10 +340,22 @@ private fun changeUnsafe(factory: RsPsiFactory, function: RsFunction, config: Rs
     }
 }
 
-private fun renameParameter(project: Project, parameter: RsValueParameter, newName: String) {
-    val binding = parameter.pat?.findBinding() ?: return
-    // TODO: how to run a refactoring inside another refactoring?
-    RefactoringFactory.getInstance(project).createRename(binding, newName).run()
+private fun renameParameter(
+    project: Project,
+    parameter: RsValueParameter,
+    usages: List<Usage.Parameter>,
+    newName: String
+) {
+    val factory = RsPsiFactory(project)
+    val identifier = factory.createIdentifier(newName)
+
+    val binding = parameter.pat?.findBinding()
+    binding?.identifier?.replace(identifier)
+
+    usages.forEach {
+        val path = it.element as? RsPath
+        path?.referenceNameElement?.replace(identifier)
+    }
 }
 
 /**

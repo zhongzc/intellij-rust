@@ -431,10 +431,12 @@ Cannot change signature of function with cfg-disabled parameters""")
     fun `test rename parameter ident with ident`() = doTest("""
         fn foo/*caret*/(a: u32) {
             let _ = a;
+            let _ = a + 1;
         }
     """, """
         fn foo(b: u32) {
             let _ = b;
+            let _ = b + 1;
         }
     """) {
         parameters[0].pat = createPat("b")
