@@ -17,9 +17,7 @@ import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.RsPat
 import org.rust.lang.core.psi.RsPsiFactory
 import org.rust.lang.core.psi.RsVis
-import org.rust.lang.core.psi.ext.isAsync
-import org.rust.lang.core.psi.ext.returnType
-import org.rust.lang.core.psi.ext.valueParameters
+import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.ty.TyUnknown
@@ -67,6 +65,9 @@ class RsChangeFunctionSignatureConfig private constructor(
     var isAsync: Boolean = false,
     var isUnsafe: Boolean = false
 ) : RsFunctionSignatureConfig(function) {
+    val allowsVisibilityChange: Boolean
+        get() = !(function.owner is RsAbstractableOwner.Trait || function.owner.isTraitImpl)
+
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
     fun renderType(type: Ty): String {

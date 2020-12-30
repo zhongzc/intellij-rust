@@ -25,7 +25,10 @@ import org.jetbrains.annotations.TestOnly
 import org.rust.ide.presentation.render
 import org.rust.ide.refactoring.isValidRustVariableIdentifier
 import org.rust.lang.RsFileType
-import org.rust.lang.core.psi.*
+import org.rust.lang.core.psi.RsFunction
+import org.rust.lang.core.psi.RsPsiFactory
+import org.rust.lang.core.psi.RsTypeReferenceCodeFragment
+import org.rust.lang.core.psi.RsVis
 import org.rust.lang.core.psi.ext.RsElement
 import org.rust.lang.core.psi.ext.returnType
 import org.rust.lang.core.types.ty.Ty
@@ -33,7 +36,10 @@ import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
 import org.rust.openapiext.document
 import org.rust.stdext.mapToMutableList
-import java.awt.*
+import java.awt.BorderLayout
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
+import java.awt.Insets
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -204,27 +210,29 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
     override fun createNorthPanel(): JComponent? {
         val panel = super.createNorthPanel() ?: return null
 
-        val visibilityPanel = JPanel(BorderLayout(0, 2))
-        val visibilityLabel = JLabel("Visibility:")
-        visibilityPanel.add(visibilityLabel, BorderLayout.NORTH)
+        if (config.allowsVisibilityChange) {
+            val visibilityPanel = JPanel(BorderLayout(0, 2))
+            val visibilityLabel = JLabel("Visibility:")
+            visibilityPanel.add(visibilityLabel, BorderLayout.NORTH)
 
-        val visibility = VisibilityComboBox(project, config.visibility) { updateSignature() }
-        visibilityLabel.labelFor = visibility.component
-        visibilityPanel.add(visibility.component, BorderLayout.SOUTH)
-        visibilityComboBox = visibility
+            val visibility = VisibilityComboBox(project, config.visibility) { updateSignature() }
+            visibilityLabel.labelFor = visibility.component
+            visibilityPanel.add(visibility.component, BorderLayout.SOUTH)
+            visibilityComboBox = visibility
 
-        // Place visibility before function name
-        val nameLayout = panel.layout as GridBagLayout
-        val constraints = nameLayout.getConstraints(myNamePanel).clone() as GridBagConstraints
-        constraints.gridx = 2
-        nameLayout.setConstraints(myNamePanel, constraints)
+            // Place visibility before function name
+            val nameLayout = panel.layout as GridBagLayout
+            val constraints = nameLayout.getConstraints(myNamePanel).clone() as GridBagConstraints
+            constraints.gridx = 2
+            nameLayout.setConstraints(myNamePanel, constraints)
 
-        val gbc = GridBagConstraints(1, 0, 1, 1, 1.0, 1.0,
-            GridBagConstraints.WEST,
-            GridBagConstraints.HORIZONTAL,
-            Insets(0, 0, 0, 0),
-            0, 0)
-        panel.add(visibilityPanel, gbc)
+            val gbc = GridBagConstraints(1, 0, 1, 1, 1.0, 1.0,
+                GridBagConstraints.WEST,
+                GridBagConstraints.HORIZONTAL,
+                Insets(0, 0, 0, 0),
+                0, 0)
+            panel.add(visibilityPanel, gbc)
+        }
         return panel
     }
 
