@@ -308,7 +308,11 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
 
         val visField = visibilityComboBox
         if (visField != null) {
-            config.visibility = visField.visibility
+            if (visField.hasValidVisibility) {
+                config.visibility = visField.visibility
+            } else {
+                return "Function visibility must be a valid visibility specifier"
+            }
         }
 
         return null
@@ -337,7 +341,8 @@ private class VisibilityComboBox(project: Project, initialVis: RsVis?, onChange:
 
     val component: JComponent = combobox
 
-    // TODO: add red underline/error if the visibility cannot be parsed (now it falls back to private)
+    val hasValidVisibility: Boolean
+        get() = (combobox.selectedItem as String).isBlank() || visibility != null
     val visibility: RsVis?
         get() = factory.tryCreateVis(combobox.selectedItem as String)
 
