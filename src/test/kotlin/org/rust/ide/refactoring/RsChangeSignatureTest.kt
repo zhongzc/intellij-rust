@@ -68,6 +68,20 @@ Cannot change signature of function with cfg-disabled parameters""")
         name = "bar"
     }
 
+    fun `test rename function import`() = doTest("""
+        mod bar {
+            pub fn foo/*caret*/() {}
+        }
+        use bar::{foo};
+    """, """
+        mod bar {
+            pub fn baz/*caret*/() {}
+        }
+        use bar::{baz};
+    """) {
+        name = "baz"
+    }
+
     fun `test rename function`() = doTest("""
         fn foo/*caret*/() {}
     """, """
