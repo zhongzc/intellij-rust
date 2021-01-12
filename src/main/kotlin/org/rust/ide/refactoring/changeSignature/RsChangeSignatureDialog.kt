@@ -207,8 +207,13 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
 
     override fun getFileType(): LanguageFileType = RsFileType
 
+    override fun placeReturnTypeBeforeName(): Boolean = false
+
     override fun createNorthPanel(): JComponent? {
         val panel = super.createNorthPanel() ?: return null
+        // Make all two (or three) elements the same size
+        myNameField.setPreferredWidth(-1)
+        myReturnTypeField.setPreferredWidth(-1)
 
         if (config.allowsVisibilityChange) {
             val visibilityPanel = JPanel(BorderLayout(0, 2))
@@ -220,13 +225,18 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
             visibilityPanel.add(visibility.component, BorderLayout.SOUTH)
             visibilityComboBox = visibility
 
-            // Place visibility before function name
-            val nameLayout = panel.layout as GridBagLayout
-            val constraints = nameLayout.getConstraints(myNamePanel).clone() as GridBagConstraints
-            constraints.gridx = 2
-            nameLayout.setConstraints(myNamePanel, constraints)
+            // Place visibility before function name and return type
+            val layout = panel.layout as GridBagLayout
+            val nameConstraints = layout.getConstraints(myNamePanel).clone() as GridBagConstraints
+            nameConstraints.gridx = 1
+            layout.setConstraints(myNamePanel, nameConstraints)
 
-            val gbc = GridBagConstraints(1, 0, 1, 1, 1.0, 1.0,
+            val myReturnTypePanel = myReturnTypeField.parent
+            val returnTypeConstraints = layout.getConstraints(myReturnTypePanel).clone() as GridBagConstraints
+            returnTypeConstraints.gridx = 2
+            layout.setConstraints(myReturnTypePanel, returnTypeConstraints)
+
+            val gbc = GridBagConstraints(0, 0, 1, 1, 1.0, 1.0,
                 GridBagConstraints.WEST,
                 GridBagConstraints.HORIZONTAL,
                 Insets(0, 0, 0, 0),
@@ -250,8 +260,10 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         }
 
         return panel {
-            row("Async:") { asyncBox() }
-            row("Unsafe:") { unsafeBox() }
+            row {
+                asyncBox()
+                unsafeBox()
+            }
         }
     }
 
