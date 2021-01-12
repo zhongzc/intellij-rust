@@ -726,9 +726,11 @@ Cannot change signature of function with cfg-disabled parameters""")
         return RsPsiFactory(project).createPat(text)
     }
 
-    private fun doTest(@Language("Rust") code: String,
-                       @Language("Rust") excepted: String,
-                       modifyConfig: RsChangeFunctionSignatureConfig.() -> Unit) {
+    private fun doTest(
+        @Language("Rust") code: String,
+        @Language("Rust") excepted: String,
+        modifyConfig: RsChangeFunctionSignatureConfig.() -> Unit
+    ) {
         withMockChangeFunctionSignature({ config ->
             modifyConfig.invoke(config)
         }) {

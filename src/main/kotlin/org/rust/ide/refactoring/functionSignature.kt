@@ -5,11 +5,8 @@
 
 package org.rust.ide.refactoring
 
-import com.intellij.openapi.project.Project
-import com.intellij.refactoring.ui.MethodSignatureComponent
 import org.rust.ide.refactoring.extractFunction.dependTypes
 import org.rust.ide.refactoring.extractFunction.types
-import org.rust.lang.RsFileType
 import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.RsTypeParameter
 import org.rust.lang.core.psi.ext.bounds

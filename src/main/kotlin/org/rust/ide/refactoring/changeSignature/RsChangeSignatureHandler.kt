@@ -63,7 +63,7 @@ class RsChangeSignatureHandler : ChangeSignatureHandler {
         CommonRefactoringUtil.showErrorHint(project, editor,
             RefactoringBundle.getCannotRefactorMessage(message),
             RefactoringBundle.message("changeSignature.refactoring.name"),
-            "refactoring.renameRefactorings"
+            "refactoring.changeSignature"
         )
     }
 

@@ -35,7 +35,6 @@ import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
 import org.rust.openapiext.document
-import org.rust.stdext.mapToMutableList
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -91,14 +90,15 @@ private class SignatureParameter(val factory: RsPsiFactory, val parameter: Param
     override fun setUseAnySingleVariable(b: Boolean) {}
 }
 
-private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig) : MethodDescriptor<SignatureParameter, String> {
+private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig)
+    : MethodDescriptor<SignatureParameter, String> {
     val function: RsFunction = config.function
 
     override fun getName(): String = config.name
 
-    override fun getParameters(): MutableList<SignatureParameter> {
+    override fun getParameters(): List<SignatureParameter> {
         val factory = RsPsiFactory(config.function.project)
-        return config.parameters.mapToMutableList { SignatureParameter(factory, it) }
+        return config.parameters.map { SignatureParameter(factory, it) }
     }
 
     override fun getParametersCount(): Int = config.parameters.size // TODO: self
@@ -255,7 +255,10 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         }
     }
 
-    override fun createParametersInfoModel(descriptor: SignatureDescriptor): TableModel = TableModel(descriptor, ::updateSignature)
+    override fun createParametersInfoModel(
+        descriptor: SignatureDescriptor
+    ): TableModel = TableModel(descriptor, ::updateSignature)
+
     override fun createRefactoringProcessor(): BaseRefactoringProcessor =
         RsChangeSignatureProcessor(project, config.createChangeInfo())
 
@@ -270,9 +273,11 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         return fragment
     }
 
-    override fun createCallerChooser(title: String?,
-                                     treeToReuse: Tree?,
-                                     callback: Consumer<MutableSet<RsFunction>>?): CallerChooserBase<RsFunction>? = null
+    override fun createCallerChooser(
+        title: String?,
+        treeToReuse: Tree?,
+        callback: Consumer<MutableSet<RsFunction>>?
+    ): CallerChooserBase<RsFunction>? = null
 
     override fun validateAndCommitData(): String? = updateConfig()
 
@@ -355,16 +360,5 @@ private class VisibilityComboBox(project: Project, initialVis: RsVis?, onChange:
     }
 }
 
-private fun createVisibilityHints(initialVis: RsVis?): Array<String> {
-    val options = mutableListOf(
-        "",
-        "pub",
-        "pub(crate)"
-    )
-    val initialText = initialVis?.text.orEmpty()
-    if (initialText !in options) {
-        options.add(0, initialText)
-    }
-
-    return options.toTypedArray()
-}
+private fun createVisibilityHints(initialVis: RsVis?): Array<String> =
+    setOf(initialVis?.text.orEmpty(), "", "pub", "pub(crate)", "pub(super)").toTypedArray()
