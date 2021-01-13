@@ -22,18 +22,10 @@ import com.intellij.ui.layout.panel
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.Consumer
 import org.jetbrains.annotations.TestOnly
-import org.rust.ide.presentation.render
 import org.rust.ide.refactoring.isValidRustVariableIdentifier
 import org.rust.lang.RsFileType
-import org.rust.lang.core.psi.RsFunction
-import org.rust.lang.core.psi.RsPsiFactory
-import org.rust.lang.core.psi.RsTypeReferenceCodeFragment
-import org.rust.lang.core.psi.RsVis
+import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.RsElement
-import org.rust.lang.core.psi.ext.returnType
-import org.rust.lang.core.types.ty.Ty
-import org.rust.lang.core.types.ty.TyUnit
-import org.rust.lang.core.types.type
 import org.rust.openapiext.document
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
@@ -81,10 +73,7 @@ private class SignatureParameter(val factory: RsPsiFactory, val parameter: Param
         }
     }
 
-    override fun getTypeText(): String = parameter.type.render(
-        includeLifetimeArguments = true,
-        includeTypeArguments = true
-    )
+    override fun getTypeText(): String = parameter.displayType?.text.orEmpty()
 
     override fun isUseAnySingleVariable(): Boolean = false
     override fun setUseAnySingleVariable(b: Boolean) {}
@@ -120,8 +109,8 @@ private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig)
 private class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     : ParameterTableModelItemBase<SignatureParameter>(
     parameter,
-    createTypeCodeFragment(function, parameter.parameter.type),
-    createTypeCodeFragment(function, parameter.parameter.type),
+    createTypeCodeFragment(function, parameter.parameter.displayType),
+    createTypeCodeFragment(function, parameter.parameter.displayType),
 ) {
     override fun isEllipsisType(): Boolean = false
 }
@@ -178,7 +167,8 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
         override fun setValue(item: ModelItem?, value: PsiCodeFragment?) {
             val fragment = value as? RsTypeReferenceCodeFragment ?: return
             if (item != null) {
-                val type = fragment.typeReference?.type
+                val type = fragment.typeReference
+                // TODO: handle errors
                 if (type != null) {
                     item.parameter.parameter.changeType(type)
                 }
@@ -275,7 +265,7 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         RsChangeSignatureProcessor(project, config.createChangeInfo())
 
     override fun createReturnTypeCodeFragment(): PsiCodeFragment {
-        val fragment = createTypeCodeFragment(myMethod.function, myMethod.function.returnType)
+        val fragment = createTypeCodeFragment(myMethod.function, myMethod.function.retType?.typeReference)
         val document = fragment.document!!
         document.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
@@ -312,12 +302,12 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         if (myReturnTypeField != null) {
             val returnTypeText = myReturnTypeField.text
             val returnType = if (returnTypeText.isBlank()) {
-                TyUnit
+                RsPsiFactory(config.function.project).createType("()")
             } else {
-                (myReturnTypeCodeFragment as? RsTypeReferenceCodeFragment)?.typeReference?.type
+                (myReturnTypeCodeFragment as? RsTypeReferenceCodeFragment)?.typeReference
             }
             if (returnType != null) {
-                config.returnType = returnType
+                config.returnTypeDisplay = returnType
             } else {
                 return "Function return type must be a valid Rust type"
             }
@@ -344,10 +334,12 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         object : ComboBoxVisibilityPanel<String>("", arrayOf()) {}
 }
 
-private fun createTypeCodeFragment(context: RsElement, type: Ty?): PsiCodeFragment = RsTypeReferenceCodeFragment(
+private fun createTypeCodeFragment(
+    context: RsElement,
+    type: RsTypeReference?
+): PsiCodeFragment = RsTypeReferenceCodeFragment(
     context.project,
-    type?.render(includeTypeArguments = true, includeLifetimeArguments = true, skipUnchangedDefaultTypeArguments = true)
-        .orEmpty(),
+    type?.text.orEmpty(),
     context = context
 )
 

@@ -13,14 +13,8 @@ import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.ide.refactoring.changeSignature.Parameter
 import org.rust.ide.refactoring.changeSignature.RsChangeFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
-import org.rust.lang.core.psi.RsPat
-import org.rust.lang.core.psi.RsPsiFactory
-import org.rust.lang.core.psi.RsStructItem
-import org.rust.lang.core.psi.RsValueParameter
-import org.rust.lang.core.types.ty.TyInteger
-import org.rust.lang.core.types.ty.TyReference
-import org.rust.lang.core.types.ty.TyUnit
-import org.rust.lang.core.types.type
+import org.rust.lang.core.psi.*
+import org.rust.lang.core.psi.ext.RsElement
 
 class RsChangeSignatureTest : RsTestBase() {
     @MockAdditionalCfgOptions("intellij_rust")
@@ -165,7 +159,15 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo() -> u32 { 0 }
     """) {
-        returnType = TyInteger.U32
+        returnTypeDisplay = createType("u32")
+    }
+
+    fun `test change return type lifetime`() = doTest("""
+        fn foo<'a, 'b>/*caret*/(a: &'a u32, b: &'b u32) -> &'a i32 { 0 }
+    """, """
+        fn foo<'a, 'b>(a: &'a u32, b: &'b u32) -> &'b i32 { 0 }
+    """) {
+        returnTypeDisplay = createType("&'b i32")
     }
 
     fun `test add return type`() = doTest("""
@@ -173,7 +175,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo() -> u32 {}
     """) {
-        returnType = TyInteger.U32
+        returnTypeDisplay = createType("u32")
     }
 
     fun `test add return type with lifetime`() = doTest("""
@@ -183,9 +185,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         fn foo/*caret*/<'a>(a: &'a u32) -> &'a u32 { a }
                           //^
     """) {
-        val parameter = findElementInEditor<RsValueParameter>()
-        val type = parameter.typeReference?.type as TyReference
-        returnType = type
+        returnTypeDisplay = createType("&'a u32")
     }
 
     fun `test add return type with default type arguments`() = doTest("""
@@ -198,7 +198,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                       //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        returnType = parameter.typeReference?.type!!
+        returnTypeDisplay = parameter.typeReference!!
     }
 
     fun `test remove return type`() = doTest("""
@@ -206,7 +206,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo() { 0 }
     """) {
-        returnType = TyUnit
+        returnTypeDisplay = createType("()")
     }
 
     fun `test remove return type without block`() = doTest("""
@@ -218,7 +218,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             fn foo() -> u32;
         }
     """) {
-        returnType = TyInteger.U32
+        returnTypeDisplay = createType("u32")
     }
 
     fun `test remove only parameter`() = doTest("""
@@ -308,7 +308,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo();
         }
     """) {
-        parameters.add(Parameter(createPat("a"), TyInteger.U32))
+        parameters.add(Parameter(createPat("a"), createType("u32")))
     }
 
     fun `test add last parameter`() = doTest("""
@@ -322,7 +322,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, );
         }
     """) {
-        parameters.add(Parameter(createPat("b"), TyInteger.U32))
+        parameters.add(Parameter(createPat("b"), createType("u32")))
     }
 
     fun `test add multiple parameters`() = doTest("""
@@ -336,8 +336,8 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, , );
         }
     """) {
-        parameters.add(Parameter(createPat("b"), TyInteger.U32))
-        parameters.add(Parameter(createPat("c"), TyInteger.U32))
+        parameters.add(Parameter(createPat("b"), createType("u32")))
+        parameters.add(Parameter(createPat("c"), createType("u32")))
     }
 
     fun `test add parameter with lifetime`() = doTest("""
@@ -348,7 +348,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                           //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(Parameter(createPat("b"), parameter.typeReference!!.type))
+        parameters.add(Parameter(createPat("b"), parameter.typeReference!!))
     }
 
     fun `test add parameter with default type arguments`() = doTest("""
@@ -361,7 +361,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                       //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(Parameter(createPat("b"), parameter.typeReference!!.type))
+        parameters.add(Parameter(createPat("b"), parameter.typeReference!!))
     }
 
     fun `test add parameter to method`() = doTest("""
@@ -381,7 +381,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             s.foo();
         }
     """) {
-        parameters.add(Parameter(createPat("a"), TyInteger.U32))
+        parameters.add(Parameter(createPat("a"), createType("u32")))
     }
 
     fun `test swap parameters`() = doTest("""
@@ -455,7 +455,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             S::foo(&s, );
         }
     """) {
-        parameters.add(Parameter(createPat("a"), TyInteger.U32))
+        parameters.add(Parameter(createPat("a"), createType("u32")))
     }
 
     fun `test delete method parameter UFCS`() = doTest("""
@@ -519,7 +519,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         parameters[0] = parameters[1]
-        parameters[1] = Parameter(createPat("a"), TyInteger.U32)
+        parameters[1] = Parameter(createPat("a"), createType("u32"))
     }
 
     fun `test rename parameter ident with ident`() = doTest("""
@@ -565,7 +565,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo(a: i32) {}
     """) {
-        parameters[0].type = TyInteger.I32
+        parameters[0].changeType(createType("i32"))
     }
 
     fun `test change trait impls`() = doTest("""
@@ -671,7 +671,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             }
         }
     """) {
-        returnType = findElementInEditor<RsStructItem>().declaredType
+        returnTypeDisplay = referToType("S", findElementInEditor<RsStructItem>())
     }
 
     @MockEdition(CargoWorkspace.Edition.EDITION_2018)
@@ -709,7 +709,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             }
         }
     """) {
-        parameters.add(Parameter(createPat("a"), findElementInEditor<RsStructItem>().declaredType))
+        parameters.add(Parameter(createPat("a"), referToType("S", findElementInEditor<RsStructItem>())))
     }
 
     private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
@@ -722,9 +722,14 @@ Cannot change signature of function with cfg-disabled parameters""")
         visibility = RsPsiFactory(project).createVis(vis)
     }
 
-    private fun createPat(text: String): RsPat {
-        return RsPsiFactory(project).createPat(text)
-    }
+    private fun createPat(text: String): RsPat = RsPsiFactory(project).createPat(text)
+    private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
+
+    /**
+     * Refer to existing type in the test code snippet.
+     */
+    private fun referToType(text: String, context: RsElement): RsTypeReference
+        = RsTypeReferenceCodeFragment(myFixture.project, text, context).typeReference!!
 
     private fun doTest(
         @Language("Rust") code: String,

@@ -10,17 +10,15 @@ import com.intellij.psi.PsiElement
 import com.intellij.refactoring.changeSignature.ChangeInfo
 import com.intellij.refactoring.changeSignature.ParameterInfo
 import com.intellij.refactoring.changeSignature.ParameterInfo.NEW_PARAMETER
-import org.rust.ide.presentation.renderInsertionSafe
 import org.rust.ide.refactoring.RsFunctionSignatureConfig
 import org.rust.lang.RsLanguage
-import org.rust.lang.core.psi.RsFunction
-import org.rust.lang.core.psi.RsPat
-import org.rust.lang.core.psi.RsPsiFactory
-import org.rust.lang.core.psi.RsVis
-import org.rust.lang.core.psi.ext.*
+import org.rust.lang.core.psi.*
+import org.rust.lang.core.psi.ext.RsAbstractableOwner
+import org.rust.lang.core.psi.ext.isAsync
+import org.rust.lang.core.psi.ext.owner
+import org.rust.lang.core.psi.ext.valueParameters
 import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyUnit
-import org.rust.lang.core.types.ty.TyUnknown
 import org.rust.lang.core.types.type
 
 /**
@@ -44,14 +42,14 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
 /**
  * This type needs to be comparable by identity, not value.
  */
-class Parameter(var pat: RsPat, private var ty: Ty? = null, val index: Int = NEW_PARAMETER) {
+class Parameter(var pat: RsPat, private var typeReference: RsTypeReference? = null, val index: Int = NEW_PARAMETER) {
     val type: Ty
-        get() = ty ?: TyUnit
-    val displayType: Ty?
-        get() = ty
+        get() = typeReference?.type ?: TyUnit
+    val displayType: RsTypeReference
+        get() = typeReference ?: RsPsiFactory(pat.project).createType("()")
 
-    fun changeType(type: Ty) {
-        ty = type
+    fun changeType(typeReference: RsTypeReference) {
+        this.typeReference = typeReference
     }
 
     val patText: String
@@ -69,27 +67,27 @@ class RsChangeFunctionSignatureConfig private constructor(
     function: RsFunction,
     var name: String,
     parameters: List<Parameter>,
-    override var returnType: Ty,
+    var returnTypeDisplay: RsTypeReference?,
     var visibility: RsVis? = null,
     var isAsync: Boolean = false,
     var isUnsafe: Boolean = false
 ) : RsFunctionSignatureConfig(function) {
+    override val parameterTypes: List<Ty>
+        get() = parameters.map { it.type }
+
+    override val returnType: Ty
+        get() = returnTypeDisplay?.type ?: TyUnit
+
+    val returnTypeReference: RsTypeReference
+        get() = returnTypeDisplay ?: RsPsiFactory(function.project).createType("()")
+
     val allowsVisibilityChange: Boolean
         get() = !(function.owner is RsAbstractableOwner.Trait || function.owner.isTraitImpl)
 
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
-    fun renderType(type: Ty): String {
-        return type.renderInsertionSafe(
-            context = function,
-            includeLifetimeArguments = true,
-            useAliasNames = true,
-            skipUnchangedDefaultTypeArguments = true
-        )
-    }
-
     private val parametersText: String
-        get() = parameters.joinToString(", ") { "${it.patText}: ${renderType(it.type)}" }
+        get() = parameters.joinToString(", ") { "${it.patText}: ${it.displayType.text}" }
 
     fun signature(): String = buildString {
         visibility?.let { append("${it.text} ") }
@@ -102,13 +100,10 @@ class RsChangeFunctionSignatureConfig private constructor(
         }
         append("fn $name$typeParametersText($parametersText)")
         if (returnType !is TyUnit) {
-            append(" -> ${renderType(returnType)}")
+            append(" -> ${returnTypeReference.text}")
         }
         append(whereClausesText)
     }
-
-    override val parameterTypes: List<Ty>
-        get() = parameters.map { it.type }
 
     fun createChangeInfo(): ChangeInfo = RsSignatureChangeInfo(this)
 
@@ -116,13 +111,13 @@ class RsChangeFunctionSignatureConfig private constructor(
         fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
             val factory = RsPsiFactory(function.project)
             val parameters = function.valueParameters.mapIndexed { index, parameter ->
-                Parameter(parameter.pat ?: factory.createPat("_"), parameter.typeReference?.type ?: TyUnknown, index)
+                Parameter(parameter.pat ?: factory.createPat("_"), parameter.typeReference, index)
             }
             return RsChangeFunctionSignatureConfig(
                 function,
                 function.name.orEmpty(),
                 parameters,
-                function.returnType,
+                function.retType?.typeReference,
                 function.vis,
                 function.isAsync,
                 function.isUnsafe

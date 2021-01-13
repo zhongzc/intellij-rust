@@ -27,7 +27,6 @@ import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.RsElementTypes.COMMA
 import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.TyUnit
-import org.rust.lang.core.types.type
 import org.rust.openapiext.editor
 import org.rust.openapiext.elementUnderCaretInEditor
 import org.rust.stdext.mapToMutableList
@@ -200,11 +199,11 @@ private fun changeVisibility(function: RsFunction, config: RsChangeFunctionSigna
 }
 
 private fun changeReturnType(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {
-    if (function.returnType != config.returnType) {
+    if (!areTypesEqual(function.retType?.typeReference, config.returnTypeReference)) {
         function.retType?.delete()
         if (config.returnType !is TyUnit) {
-            val ret = factory.createRetType(config.renderType(config.returnType))
-            function.addAfter(ret, function.valueParameterList)
+            val ret = factory.createRetType(config.returnTypeReference.text)
+            function.addAfter(ret, function.valueParameterList) as RsRetType
             importTypeReferencesFromTy(function, config.returnType, useAliases = true)
         }
     }
@@ -227,16 +226,13 @@ private fun changeParameters(
         }
     }
 
-    fun createType(parameter: Parameter): RsTypeReference =
-        factory.tryCreateType(config.renderType(parameter.type)) ?: factory.createType("()")
-
     cycle@ for ((index, data) in config.parameters.zip(parameterOps).withIndex()) {
         val (parameter, op) = data
         when (op) {
             is ParameterOperation.Add -> {
                 deleteItem(parameterList, index)
 
-                val typeReference = createType(parameter)
+                val typeReference = parameter.displayType
                 val newParameter = factory.createValueParameter(parameter.patText, typeReference, reference = false)
                 val anchor = findAnchorToInsertItem(parameters, function, index)
                 insertItemWithComma(factory, newParameter, parameters, anchor)
@@ -267,8 +263,8 @@ private fun changeParameters(
                         currentParameter.pat?.replace(parameter.pat)
                     }
                 }
-                if (parameter.type != currentParameter.typeReference?.type) {
-                    currentParameter.typeReference?.replace(createType(parameter))
+                if (!areTypesEqual(parameter.displayType, currentParameter.typeReference)) {
+                    currentParameter.typeReference?.replace(parameter.displayType)
                 }
             }
         }
@@ -437,6 +433,7 @@ private fun findAnchorToInsertItem(items: PsiElement, function: RsFunction, inde
         else -> commas[index - 1]
     }
 }
+
 private fun skipFirstItem(itemHolder: RsElement, potentialFirstItem: PsiElement?): PsiElement = when {
     potentialFirstItem == null -> itemHolder.firstChild
     potentialFirstItem.nextSibling.elementType == COMMA -> potentialFirstItem.nextSibling
@@ -468,3 +465,6 @@ private sealed class ParameterOperation {
     // Move a parameter from `originalIndex` to the current index
     class Move(val originalIndex: Int) : ParameterOperation()
 }
+
+private fun areTypesEqual(t1: RsTypeReference?, t2: RsTypeReference?): Boolean = (t1?.text ?: "()") == (t2?.text
+    ?: "()")
