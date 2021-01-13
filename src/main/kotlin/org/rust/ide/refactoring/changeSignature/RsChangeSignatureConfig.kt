@@ -44,7 +44,16 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
 /**
  * This type needs to be comparable by identity, not value.
  */
-class Parameter(var pat: RsPat, var type: Ty, val index: Int = NEW_PARAMETER) {
+class Parameter(var pat: RsPat, private var ty: Ty? = null, val index: Int = NEW_PARAMETER) {
+    val type: Ty
+        get() = ty ?: TyUnit
+    val displayType: Ty?
+        get() = ty
+
+    fun changeType(type: Ty) {
+        ty = type
+    }
+
     val patText: String
         get() = pat.text
 }

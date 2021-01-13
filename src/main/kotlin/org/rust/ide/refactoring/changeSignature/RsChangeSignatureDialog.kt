@@ -170,7 +170,7 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
 
     private fun createNewParameter(descriptor: SignatureDescriptor): Parameter {
         val pat = factory.createPat("p${descriptor.parametersCount}")
-        return Parameter(pat, factory.createType("()").type)
+        return Parameter(pat)
     }
 
     private class SignatureTypeColumn(val descriptor: SignatureDescriptor)
@@ -180,14 +180,14 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
             if (item != null) {
                 val type = fragment.typeReference?.type
                 if (type != null) {
-                    item.parameter.parameter.type = type
+                    item.parameter.parameter.changeType(type)
                 }
             }
         }
 
         override fun valueOf(item: ModelItem?): PsiCodeFragment? {
             if (item == null) return null
-            return createTypeCodeFragment(descriptor.function, item.parameter.parameter.type)
+            return createTypeCodeFragment(descriptor.function, item.parameter.parameter.displayType)
         }
     }
 }
@@ -344,9 +344,10 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         object : ComboBoxVisibilityPanel<String>("", arrayOf()) {}
 }
 
-private fun createTypeCodeFragment(context: RsElement, type: Ty): PsiCodeFragment = RsTypeReferenceCodeFragment(
+private fun createTypeCodeFragment(context: RsElement, type: Ty?): PsiCodeFragment = RsTypeReferenceCodeFragment(
     context.project,
-    type.render(includeTypeArguments = true, includeLifetimeArguments = true, skipUnchangedDefaultTypeArguments = true),
+    type?.render(includeTypeArguments = true, includeLifetimeArguments = true, skipUnchangedDefaultTypeArguments = true)
+        .orEmpty(),
     context = context
 )
 
