@@ -34,6 +34,7 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         val function = config.function
 
         findNameConflicts(function, config, map)
+        findVisibilityConflicts(function, config, refUsages.get(), map)
 
         return map
     }
@@ -87,6 +88,25 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         usages: Array<out UsageInfo>?,
         changeInfo: ChangeInfo?
     ) {
+    }
+}
+
+private fun findVisibilityConflicts(
+    function: RsFunction,
+    config: RsChangeFunctionSignatureConfig,
+    usages: Array<UsageInfo>,
+    map: @NotNull MultiMap<PsiElement, String>
+) {
+    val functionUsages = usages.filterIsInstance<RsFunctionUsage>()
+    val clone = function.copy() as RsFunction
+    changeVisibility(clone, config)
+
+    for (usage in functionUsages) {
+        val sourceModule = (usage.element as? RsElement)?.containingMod ?: continue
+        if (!clone.isVisibleFrom(sourceModule)) {
+            val moduleName = sourceModule.qualifiedName.orEmpty()
+            map.putValue(function, RsBundle.message("refactoring.change.signature.visibility.conflict", moduleName))
+        }
     }
 }
 

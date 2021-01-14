@@ -142,7 +142,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         pub(crate) fn foo() {}
     """) {
-        setVisibility("pub(crate)")
+        visibility = createVisibility("pub(crate)")
     }
 
     fun `test remove visibility`() = doTest("""
@@ -632,7 +632,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """) {
         isAsync = true
         isUnsafe = true
-        setVisibility("pub")
+        visibility = createVisibility("pub")
     }
 
     /*@MockEdition(CargoWorkspace.Edition.EDITION_2018)
@@ -714,7 +714,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     fun `test name conflict module`() = checkConflicts("""
         fn foo/*caret*/() {}
         fn bar() {}
-    """, setOf("The name `bar` conflict with an already existing item in main.rs (in test_package)")) {
+    """, setOf("The name bar conflicts with an existing item in main.rs (in test_package)")) {
         name = "bar"
     }
 
@@ -725,7 +725,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             fn foo/*caret*/() {}
             fn bar() {}
         }
-    """, setOf("The name `bar` conflict with an already existing item in impl S (in test_package)")) {
+    """, setOf("The name bar conflicts with an existing item in impl S (in test_package)")) {
         name = "bar"
     }
 
@@ -740,8 +740,59 @@ Cannot change signature of function with cfg-disabled parameters""")
             fn foo/*caret*/() {}
             fn bar() {}
         }
-    """, setOf("The name `bar` conflict with an already existing item in impl Trait for S (in test_package)")) {
+    """, setOf("The name bar conflicts with an existing item in impl Trait for S (in test_package)")) {
         name = "bar"
+    }
+
+    fun `test visibility conflict function call`() = checkConflicts("""
+        mod foo {
+            pub fn bar/*caret*/() {}
+        }
+        fn baz() {
+            foo::bar();
+        }
+    """, setOf("The function will not be visible from test_package after the refactoring")) {
+        visibility = null
+    }
+
+    fun `test visibility conflict method call`() = checkConflicts("""
+        mod foo {
+            pub struct S;
+            impl S {
+                pub fn bar/*caret*/(&self) {}
+            }
+        }
+        mod foo2 {
+            fn baz(s: super::foo::S) {
+                s.bar();
+            }
+        }
+    """, setOf("The function will not be visible from test_package::foo2 after the refactoring")) {
+        visibility = null
+    }
+
+    fun `test no visibility conflict restricted mod`() = doTest("""
+        mod foo2 {
+            mod foo {
+                fn bar/*caret*/() {}
+            }
+            fn baz() {
+                foo::bar();
+            }
+        }
+
+    """, """
+        mod foo2 {
+            mod foo {
+                pub(in super) fn bar/*caret*/() {}
+            }
+            fn baz() {
+                foo::bar();
+            }
+        }
+
+    """) {
+        visibility = createVisibility("pub(in super)")
     }
 
     private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
@@ -750,10 +801,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters[b] = param
     }
 
-    private fun RsChangeFunctionSignatureConfig.setVisibility(vis: String) {
-        visibility = RsPsiFactory(project).createVis(vis)
-    }
-
+    private fun createVisibility(vis: String): RsVis = RsPsiFactory(project).createVis(vis)
     private fun createPat(text: String): RsPat = RsPsiFactory(project).createPat(text)
     private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
 
@@ -782,7 +830,9 @@ Cannot change signature of function with cfg-disabled parameters""")
     ) {
         try {
             doTest(code, code, modifyConfig)
-            error("No conflicts found, expected $expectedConflicts")
+            if (expectedConflicts.isNotEmpty()) {
+                error("No conflicts found, expected $expectedConflicts")
+            }
         }
         catch (e: BaseRefactoringProcessor.ConflictsInTestsException) {
             assertEquals(expectedConflicts, e.messages.toSet())

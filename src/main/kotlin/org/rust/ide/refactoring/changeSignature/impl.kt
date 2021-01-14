@@ -98,7 +98,7 @@ private fun renameFunctionUsage(
     }
 }
 
-private fun changeVisibility(function: RsFunction, config: RsChangeFunctionSignatureConfig) {
+fun changeVisibility(function: RsFunction, config: RsChangeFunctionSignatureConfig) {
     if (function.vis?.text == config.visibility?.text) return
 
     function.vis?.delete()
