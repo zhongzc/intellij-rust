@@ -76,6 +76,9 @@
         <lang.refactoringSupport language="Rust"
                                  implementationClass="org.rust.ide.refactoring.RsRefactoringSupportProvider"/>
 
+        <refactoring.changeSignatureUsageProcessor implementation="org.rust.ide.refactoring.changeSignature.RsChangeSignatureUsageProcessor"
+                                                   id="Rust"/>
+
         <!-- Commenter -->
 
         <lang.commenter language="Rust" implementationClass="org.rust.ide.commenter.RsCommenter"/>

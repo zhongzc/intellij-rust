@@ -119,7 +119,7 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
     : ParameterTableModelBase<SignatureParameter, ModelItem>(
     descriptor.function,
     descriptor.function,
-    NameColumn<SignatureParameter, ModelItem>(descriptor.function.project, "Pattern"),
+    NameColumn<SignatureParameter, ModelItem>(descriptor.function.project, "Pattern:"),
     SignatureTypeColumn(descriptor)
 ) {
     private val factory: RsPsiFactory = RsPsiFactory(descriptor.function.project)

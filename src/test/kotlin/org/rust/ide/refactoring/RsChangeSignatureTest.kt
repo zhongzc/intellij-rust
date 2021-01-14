@@ -568,7 +568,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters[0].changeType(createType("i32"))
     }
 
-    fun `test change trait impls`() = doTest("""
+    /*fun `test change trait impls`() = doTest("""
         trait Trait {
             fn foo/*caret*/(&self);
         }
@@ -592,7 +592,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         name = "bar"
-    }
+    }*/
 
     fun `test add async`() = doTest("""
         fn foo/*caret*/(a: u32) {}
@@ -636,7 +636,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         setVisibility("pub")
     }
 
-    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    /*@MockEdition(CargoWorkspace.Edition.EDITION_2018)
     fun `test import return type in different module`() = doTest("""
         mod foo {
             pub struct S;
@@ -710,7 +710,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         parameters.add(Parameter(createPat("a"), referToType("S", findElementInEditor<RsStructItem>())))
-    }
+    }*/
 
     private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
         val param = parameters[a]

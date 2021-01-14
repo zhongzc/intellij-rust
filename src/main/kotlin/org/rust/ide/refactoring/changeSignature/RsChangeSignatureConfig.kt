@@ -22,7 +22,7 @@ import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
 
 /**
- * This class just holds [config], otherwise it is unimplemented.
+ * This class just holds [config].
  * It is required by [com.intellij.refactoring.changeSignature.ChangeSignatureProcessorBase].
  */
 class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : ChangeInfo {
@@ -31,10 +31,12 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
     override fun isParameterTypesChanged(): Boolean = false
     override fun isParameterNamesChanged(): Boolean = false
     override fun isGenerateDelegate(): Boolean = false
-    override fun isNameChanged(): Boolean = false
-    override fun isReturnTypeChanged(): Boolean = false
 
-    override fun getNewName(): String = config.function.name ?: "?"
+    override fun isReturnTypeChanged(): Boolean = config.returnTypeDisplay?.text == config.function.retType?.typeReference?.text
+
+    override fun getNewName(): String = config.name
+    override fun isNameChanged(): Boolean = config.nameChanged()
+
     override fun getMethod(): PsiElement = config.function
     override fun getLanguage(): Language = RsLanguage
 }
@@ -86,6 +88,8 @@ class RsChangeFunctionSignatureConfig private constructor(
 
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
+    private val originalName: String = function.name.orEmpty()
+
     private val parametersText: String
         get() = parameters.joinToString(", ") { "${it.patText}: ${it.displayType.text}" }
 
@@ -106,6 +110,7 @@ class RsChangeFunctionSignatureConfig private constructor(
     }
 
     fun createChangeInfo(): ChangeInfo = RsSignatureChangeInfo(this)
+    fun nameChanged(): Boolean = name != originalName
 
     companion object {
         fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
