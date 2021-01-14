@@ -5,11 +5,10 @@
 
 package org.rust.ide.refactoring
 
+import com.intellij.refactoring.BaseRefactoringProcessor
 import org.intellij.lang.annotations.Language
 import org.rust.MockAdditionalCfgOptions
-import org.rust.MockEdition
 import org.rust.RsTestBase
-import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.ide.refactoring.changeSignature.Parameter
 import org.rust.ide.refactoring.changeSignature.RsChangeFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
@@ -712,6 +711,39 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.add(Parameter(createPat("a"), referToType("S", findElementInEditor<RsStructItem>())))
     }*/
 
+    fun `test name conflict module`() = checkConflicts("""
+        fn foo/*caret*/() {}
+        fn bar() {}
+    """, setOf("The name `bar` conflict with an already existing item in main.rs (in test_package)")) {
+        name = "bar"
+    }
+
+    fun `test name conflict impl`() = checkConflicts("""
+        struct S;
+
+        impl S {
+            fn foo/*caret*/() {}
+            fn bar() {}
+        }
+    """, setOf("The name `bar` conflict with an already existing item in impl S (in test_package)")) {
+        name = "bar"
+    }
+
+    fun `test name conflict trait impl`() = checkConflicts("""
+        struct S;
+        trait Trait {
+            fn foo();
+            fn bar();
+        }
+
+        impl Trait for S {
+            fn foo/*caret*/() {}
+            fn bar() {}
+        }
+    """, setOf("The name `bar` conflict with an already existing item in impl Trait for S (in test_package)")) {
+        name = "bar"
+    }
+
     private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {
         val param = parameters[a]
         parameters[a] = parameters[b]
@@ -733,20 +765,34 @@ Cannot change signature of function with cfg-disabled parameters""")
 
     private fun doTest(
         @Language("Rust") code: String,
-        @Language("Rust") excepted: String,
+        @Language("Rust") expected: String,
         modifyConfig: RsChangeFunctionSignatureConfig.() -> Unit
     ) {
         withMockChangeFunctionSignature({ config ->
             modifyConfig.invoke(config)
         }) {
-            checkEditorAction(code, excepted, "ChangeSignature", trimIndent = false)
+            checkEditorAction(code, expected, "ChangeSignature", trimIndent = false)
+        }
+    }
+
+    private fun checkConflicts(
+        @Language("Rust") code: String,
+        expectedConflicts: Set<String>,
+        modifyConfig: RsChangeFunctionSignatureConfig.() -> Unit
+    ) {
+        try {
+            doTest(code, code, modifyConfig)
+            error("No conflicts found, expected $expectedConflicts")
+        }
+        catch (e: BaseRefactoringProcessor.ConflictsInTestsException) {
+            assertEquals(expectedConflicts, e.messages.toSet())
         }
     }
 
     private fun checkError(@Language("Rust") code: String, errorMessage: String) {
         try {
             checkEditorAction(code, code, "ChangeSignature")
-            error("no error found, expected $errorMessage")
+            error("No error found, expected $errorMessage")
         } catch (e: Exception) {
             assertEquals(errorMessage, e.message)
         }

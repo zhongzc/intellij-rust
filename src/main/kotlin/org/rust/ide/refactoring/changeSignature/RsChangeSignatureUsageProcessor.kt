@@ -13,6 +13,12 @@ import com.intellij.refactoring.changeSignature.ChangeSignatureUsageProcessor
 import com.intellij.refactoring.rename.ResolveSnapshotProvider
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.containers.MultiMap
+import org.jetbrains.annotations.NotNull
+import org.rust.RsBundle
+import org.rust.ide.presentation.getPresentation
+import org.rust.lang.core.psi.RsFunction
+import org.rust.lang.core.psi.RsImplItem
+import org.rust.lang.core.psi.ext.*
 
 class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
     override fun findUsages(changeInfo: ChangeInfo?): Array<UsageInfo> {
@@ -21,8 +27,16 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         return findFunctionUsages(function).toTypedArray()
     }
 
-    override fun findConflicts(info: ChangeInfo?, refUsages: Ref<Array<UsageInfo>>?): MultiMap<PsiElement, String> =
-        MultiMap.create()
+    override fun findConflicts(changeInfo: ChangeInfo?, refUsages: Ref<Array<UsageInfo>>): MultiMap<PsiElement, String> {
+        val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return MultiMap.empty()
+        val map = MultiMap.create<PsiElement, String>()
+        val config = rsChangeInfo.config
+        val function = config.function
+
+        findNameConflicts(function, config, map)
+
+        return map
+    }
 
     override fun processUsage(
         changeInfo: ChangeInfo?,
@@ -57,7 +71,7 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         return false
     }
 
-    override fun shouldPreviewUsages(changeInfo: ChangeInfo?, usages: Array<out UsageInfo>?): Boolean = true
+    override fun shouldPreviewUsages(changeInfo: ChangeInfo?, usages: Array<out UsageInfo>?): Boolean = false
 
     override fun setupDefaultValues(
         changeInfo: ChangeInfo?,
@@ -73,5 +87,29 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         usages: Array<out UsageInfo>?,
         changeInfo: ChangeInfo?
     ) {
+    }
+}
+
+private fun findNameConflicts(
+    function: RsFunction,
+    config: RsChangeFunctionSignatureConfig,
+    map: @NotNull MultiMap<PsiElement, String>
+) {
+    val (owner, items) = when (val owner = function.owner) {
+        is RsAbstractableOwner.Impl -> owner.impl to owner.impl.expandedMembers
+        is RsAbstractableOwner.Trait -> owner.trait to owner.trait.expandedMembers
+        else -> {
+            val parent = function.parent as RsItemsOwner
+            parent to parent.itemsAndMacros.filterIsInstance<RsItemElement>().toList()
+        }
+    }
+    for (item in items) {
+        if (item == function) continue
+        if (item.name == config.name) {
+            val presentation = getPresentation(owner)
+            val prefix = if (owner is RsImplItem) "impl " else ""
+            val ownerName = "${prefix}${presentation.presentableText.orEmpty()} ${presentation.locationString.orEmpty()}"
+            map.putValue(function, RsBundle.message("refactoring.change.signature.name.conflict", config.name, ownerName))
+        }
     }
 }
