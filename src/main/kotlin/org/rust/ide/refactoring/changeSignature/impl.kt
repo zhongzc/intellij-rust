@@ -7,6 +7,7 @@ package org.rust.ide.refactoring.changeSignature
 
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.refactoring.changeSignature.ParameterInfo
 import com.intellij.refactoring.rename.RenameUtil
 import com.intellij.usageView.UsageInfo
@@ -280,39 +281,61 @@ private fun changeUnsafe(factory: RsPsiFactory, function: RsFunction, config: Rs
 }
 
 /**
- * Inserts a parameter/argument into a parameter/argument list along with comments and whitespace, fixing commas before and after.
+ * Inserts a parameter/argument into a parameter/argument list along with comments and whitespace.
+ * Also fixes commas before and after the inserted item.
  */
 private fun insertItemWithComma(
     factory: RsPsiFactory,
     item: RsElement,
     items: RsElement,
-    anchor: PsiElement?
+    anchor: PsiElement
 ) {
-    /* TODO: Fix insertion of whitespace
-    val start = parameter.getPrevNonCommentSibling()?.nextSibling ?: parameter
-    val end = parameter.getNextNonCommentSibling()?.prevSibling ?: parameter
-
+    // Insert all whitespace and comments around the item
     var insertionAnchor = anchor
-    val inserted = mutableListOf<PsiElement>()
-    var toInsert = start
-    while (true) {
-        val newlyInserted = parameters.addAfter(toInsert, insertionAnchor)
-        inserted.add(newlyInserted)
-        if (toInsert == end) break
+    var index = items.childrenWithLeaves.indexOf(insertionAnchor)
 
-        insertionAnchor = newlyInserted
-        toInsert = toInsert.nextSibling
-    }*/
+    var start = item.getPrevNonCommentSibling()?.nextSibling ?: item
+    val end = item.getNextNonCommentSibling()?.prevSibling ?: item
 
-    val inserted = listOf(items.addAfter(item, anchor))
+    // +1 because of zero indexing and +1 for start itself
+    // If start == end, indexOf returns -1 and count becomes 1
+    val count = start.rightSiblings.indexOf(end) + 2
+    val inserted = mutableListOf<Int>()
+    for (c in 0 until count) {
+        items.addAfter(start, insertionAnchor)
+        val children = items.childrenWithLeaves.toList()
 
-    val firstInserted = inserted.getOrNull(0) ?: return
+        index = when {
+            // Whitespaces were merge together, stay on the same index
+            start is PsiWhiteSpace && insertionAnchor is PsiWhiteSpace -> index
+            // Whitespace was auto-inserted before the inserted element, skip one index
+            children[index + 1] is PsiWhiteSpace && start !is PsiWhiteSpace -> {
+                assert(children[index + 2].elementType == start.elementType)
+                index + 2
+            }
+            // Element was inserted normally
+            else -> index + 1
+        }
+        inserted.add(index)
+
+        // We need to use an index, because inserting e.g. comments can change PSI instance of whitespace around them
+        insertionAnchor = children[index]
+        start = start.nextSibling
+    }
+
+    val firstInsertedIndex = inserted.first()
+    val lastInsertedIndex = inserted.last()
+    val children = items.childrenWithLeaves.toList()
+
+    // Add comma before first inserted element
+    val firstInserted = children[firstInsertedIndex]
     val previous = firstInserted.getPrevNonCommentSibling()
     if (previous != items.firstChild && previous?.elementType != RsElementTypes.COMMA) {
         items.addBefore(factory.createComma(), firstInserted)
     }
 
-    val lastInserted = inserted.getOrNull(inserted.lastIndex) ?: return
+    // Add comma after last inserted element
+    val lastInserted = children[lastInsertedIndex]
     val next = lastInserted.getNextNonCommentSibling()
     if (next != items.lastChild && next?.elementType != RsElementTypes.COMMA) {
         items.addAfter(factory.createComma(), lastInserted)
@@ -323,7 +346,7 @@ private fun insertItemWithComma(
  * Finds an element after which we should insert a parameter/argument so that it ends up at `index` position.
  * Skips over self parameter in methods.
  */
-private fun findAnchorToInsertItem(items: PsiElement, function: RsFunction, index: Int): PsiElement? {
+private fun findAnchorToInsertItem(items: PsiElement, function: RsFunction, index: Int): PsiElement {
     // Skip over self and potentially its following comma
     val firstChild = when (items) {
         is RsValueParameterList -> skipFirstItem(items, items.selfParameter)

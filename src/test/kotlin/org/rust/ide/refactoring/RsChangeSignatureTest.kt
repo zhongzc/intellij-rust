@@ -479,19 +479,33 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.removeAt(0)
     }
 
-    /*fun `test swap parameters with comments`() = doTest("""
-        fn foo/*caret*/( /*a0*/ a /*a1*/ : u32, /*b0*/ b: u32 /*b1*/) {}
+    fun `test swap parameters with comments`() = doTest("""
+        fn foo/*caret*/( /*a0*/ a /*a1*/ : u32 /*a2*/ , /*b0*/ b: u32 /*b1*/ ) {}
         fn bar() {
             foo(0, 1);
         }
     """, """
-        fn foo(/*b0*/ b: u32 /*b1*/,  /*a0*/ a /*a1*/ : u32) {}
+        fn foo(/*b0*/ b: u32 /*b1*/, /*a0*/ a /*a1*/ : u32 /*a2*/) {}
         fn bar() {
             foo(1, 0);
         }
     """) {
         swapParameters(0, 1)
-    }*/
+    }
+
+    fun `test swap arguments with comments`() = doTest("""
+        fn foo/*caret*/(a: u32, b: u32) {}
+        fn bar() {
+            foo( /*a0*/ 0 /*a1*/  /*a2*/ , /*b0*/ 1 /*b1*/ );
+        }
+    """, """
+        fn foo(b: u32, a: u32) {}
+        fn bar() {
+            foo(/*b0*/ 1 /*b1*/, /*a0*/ 0 /*a1*/  /*a2*/);
+        }
+    """) {
+        swapParameters(0, 1)
+    }
 
     fun `test multiple move`() = doTest("""
         fn foo/*caret*/(a: u32, b: u32, c: u32) {}
@@ -506,6 +520,21 @@ Cannot change signature of function with cfg-disabled parameters""")
     """) {
         swapParameters(0, 1)
         swapParameters(1, 2)
+    }
+
+    fun `test swap back`() = doTest("""
+        fn foo/*caret*/(a: u32, b: u32, c: u32) {}
+        fn bar() {
+            foo(0, 1, 2);
+        }
+    """, """
+        fn foo(a: u32, b: u32, c: u32) {}
+        fn bar() {
+            foo(0, 1, 2);
+        }
+    """) {
+        swapParameters(0, 1)
+        swapParameters(1, 0)
     }
 
     fun `test move and add parameter`() = doTest("""
