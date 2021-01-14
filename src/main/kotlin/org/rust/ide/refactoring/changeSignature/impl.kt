@@ -138,7 +138,7 @@ private fun changeParameters(
             is ParameterOperation.Add -> {
                 deleteItem(parameterList, index)
 
-                val typeReference = parameter.displayType
+                val typeReference = parameter.typeReference
                 val newParameter = factory.createValueParameter(parameter.patText, typeReference, reference = false)
                 val anchor = findAnchorToInsertItem(parameters, function, index)
                 insertItemWithComma(factory, newParameter, parameters, anchor)
@@ -157,15 +157,15 @@ private fun changeParameters(
         when (op) {
             is ParameterOperation.Move, is ParameterOperation.Keep -> {
                 val currentParameter = parameters.valueParameterList[index]
-                if (parameter.pat.text != currentParameter.pat?.text) {
+                if (parameter.patText != currentParameter.pat?.text) {
                     if (parameter.pat is RsPatIdent && currentParameter.pat is RsPatIdent) {
                         parameterRenames[currentParameter] = parameter.patText
                     } else {
                         currentParameter.pat?.replace(parameter.pat)
                     }
                 }
-                if (!areTypesEqual(parameter.displayType, currentParameter.typeReference)) {
-                    currentParameter.typeReference?.replace(parameter.displayType)
+                if (!areTypesEqual(parameter.typeReference, currentParameter.typeReference)) {
+                    currentParameter.typeReference?.replace(parameter.typeReference)
                 }
             }
         }

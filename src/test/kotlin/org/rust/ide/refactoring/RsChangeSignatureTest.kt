@@ -8,7 +8,9 @@ package org.rust.ide.refactoring
 import com.intellij.refactoring.BaseRefactoringProcessor
 import org.intellij.lang.annotations.Language
 import org.rust.MockAdditionalCfgOptions
+import org.rust.MockEdition
 import org.rust.RsTestBase
+import org.rust.cargo.project.workspace.CargoWorkspace
 import org.rust.ide.refactoring.changeSignature.Parameter
 import org.rust.ide.refactoring.changeSignature.RsChangeFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
@@ -307,7 +309,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo();
         }
     """) {
-        parameters.add(Parameter(createPat("a"), createType("u32")))
+        parameters.add(parameter("a", createType("u32")))
     }
 
     fun `test add last parameter`() = doTest("""
@@ -321,7 +323,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, );
         }
     """) {
-        parameters.add(Parameter(createPat("b"), createType("u32")))
+        parameters.add(parameter("b", createType("u32")))
     }
 
     fun `test add multiple parameters`() = doTest("""
@@ -335,8 +337,8 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, , );
         }
     """) {
-        parameters.add(Parameter(createPat("b"), createType("u32")))
-        parameters.add(Parameter(createPat("c"), createType("u32")))
+        parameters.add(parameter("b", createType("u32")))
+        parameters.add(parameter("c", createType("u32")))
     }
 
     fun `test add parameter with lifetime`() = doTest("""
@@ -347,7 +349,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                           //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(Parameter(createPat("b"), parameter.typeReference!!))
+        parameters.add(parameter("b", parameter.typeReference!!))
     }
 
     fun `test add parameter with default type arguments`() = doTest("""
@@ -360,7 +362,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                       //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(Parameter(createPat("b"), parameter.typeReference!!))
+        parameters.add(parameter("b", parameter.typeReference!!))
     }
 
     fun `test add parameter to method`() = doTest("""
@@ -380,7 +382,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             s.foo();
         }
     """) {
-        parameters.add(Parameter(createPat("a"), createType("u32")))
+        parameters.add(parameter("a", createType("u32")))
     }
 
     fun `test swap parameters`() = doTest("""
@@ -454,7 +456,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             S::foo(&s, );
         }
     """) {
-        parameters.add(Parameter(createPat("a"), createType("u32")))
+        parameters.add(parameter("a", createType("u32")))
     }
 
     fun `test delete method parameter UFCS`() = doTest("""
@@ -518,7 +520,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         parameters[0] = parameters[1]
-        parameters[1] = Parameter(createPat("a"), createType("u32"))
+        parameters[1] = parameter("a", createType("u32"))
     }
 
     fun `test rename parameter ident with ident`() = doTest("""
@@ -532,7 +534,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             let _ = b + 1;
         }
     """) {
-        parameters[0].pat = createPat("b")
+        parameters[0].patText = "b"
     }
 
     fun `test rename parameter complex pat with ident`() = doTest("""
@@ -544,7 +546,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             let _ = a;
         }
     """) {
-        parameters[0].pat = createPat("x")
+        parameters[0].patText = "x"
     }
 
     fun `test rename parameter ident with complex pat`() = doTest("""
@@ -556,7 +558,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             let _ = a;
         }
     """) {
-        parameters[0].pat = createPat("(x, y)")
+        parameters[0].patText = "(x, y)"
     }
 
     fun `test change parameter type`() = doTest("""
@@ -564,7 +566,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo(a: i32) {}
     """) {
-        parameters[0].changeType(createType("i32"))
+        parameters[0].typeText = createType("i32")
     }
 
     fun `test add async`() = doTest("""
@@ -609,39 +611,24 @@ Cannot change signature of function with cfg-disabled parameters""")
         visibility = createVisibility("pub")
     }
 
-    /*@MockEdition(CargoWorkspace.Edition.EDITION_2018)
+    @MockEdition(CargoWorkspace.Edition.EDITION_2018)
     fun `test import return type in different module`() = doTest("""
         mod foo {
             pub struct S;
                      //^
-            pub trait Trait {
-                fn f1/*caret*/(&self);
-            }
         }
         mod bar {
-            use super::foo::Trait;
-
-            struct T;
-            impl Trait for T {
-                fn f1(&self) { unimplemented!() }
-            }
+            fn baz/*caret*/() {}
         }
     """, """
         mod foo {
             pub struct S;
                      //^
-            pub trait Trait {
-                fn f1(&self) -> S;
-            }
         }
         mod bar {
-            use super::foo::Trait;
             use crate::foo::S;
 
-            struct T;
-            impl Trait for T {
-                fn f1(&self) -> S { unimplemented!() }
-            }
+            fn baz/*caret*/() -> S {}
         }
     """) {
         returnTypeDisplay = referToType("S", findElementInEditor<RsStructItem>())
@@ -652,38 +639,23 @@ Cannot change signature of function with cfg-disabled parameters""")
         mod foo {
             pub struct S;
                      //^
-            pub trait Trait {
-                fn f1/*caret*/(&self);
-            }
         }
         mod bar {
-            use super::foo::Trait;
-
-            struct T;
-            impl Trait for T {
-                fn f1(&self) { unimplemented!() }
-            }
+            fn baz/*caret*/() {}
         }
     """, """
         mod foo {
             pub struct S;
                      //^
-            pub trait Trait {
-                fn f1(&self, a: S);
-            }
         }
         mod bar {
-            use super::foo::Trait;
             use crate::foo::S;
 
-            struct T;
-            impl Trait for T {
-                fn f1(&self, a: S) { unimplemented!() }
-            }
+            fn baz/*caret*/(s: S) {}
         }
     """) {
-        parameters.add(Parameter(createPat("a"), referToType("S", findElementInEditor<RsStructItem>())))
-    }*/
+        parameters.add(parameter("s", referToType("S", findElementInEditor<RsStructItem>())))
+    }
 
     fun `test name conflict module`() = checkConflicts("""
         fn foo/*caret*/() {}
@@ -829,8 +801,15 @@ Cannot change signature of function with cfg-disabled parameters""")
     }
 
     private fun createVisibility(vis: String): RsVis = RsPsiFactory(project).createVis(vis)
-    private fun createPat(text: String): RsPat = RsPsiFactory(project).createPat(text)
     private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
+    private fun parameter(patText: String, type: RsTypeReference): Parameter {
+        val factory = RsPsiFactory(project)
+        return Parameter(
+            factory,
+            patText,
+            type
+        )
+    }
 
     /**
      * Refer to existing type in the test code snippet.

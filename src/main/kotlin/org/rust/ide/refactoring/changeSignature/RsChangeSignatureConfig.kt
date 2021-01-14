@@ -13,10 +13,7 @@ import com.intellij.refactoring.changeSignature.ParameterInfo.NEW_PARAMETER
 import org.rust.ide.refactoring.RsFunctionSignatureConfig
 import org.rust.lang.RsLanguage
 import org.rust.lang.core.psi.*
-import org.rust.lang.core.psi.ext.RsAbstractableOwner
-import org.rust.lang.core.psi.ext.isAsync
-import org.rust.lang.core.psi.ext.owner
-import org.rust.lang.core.psi.ext.valueParameters
+import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.Ty
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.lang.core.types.type
@@ -44,18 +41,19 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
 /**
  * This type needs to be comparable by identity, not value.
  */
-class Parameter(var pat: RsPat, private var typeReference: RsTypeReference? = null, val index: Int = NEW_PARAMETER) {
+class Parameter(
+    val factory: RsPsiFactory,
+    var patText: String,
+    var typeText: RsTypeReference? = null,
+    val index: Int = NEW_PARAMETER
+) {
     val type: Ty
-        get() = typeReference?.type ?: TyUnit
-    val displayType: RsTypeReference
-        get() = typeReference ?: RsPsiFactory(pat.project).createType("()")
+        get() = typeText?.type ?: TyUnit
+    val typeReference: RsTypeReference
+        get() = typeText ?: factory.createType("()")
 
-    fun changeType(typeReference: RsTypeReference) {
-        this.typeReference = typeReference
-    }
-
-    val patText: String
-        get() = pat.text
+    val pat: RsPat
+        get() = factory.tryCreatePat(patText) ?: factory.createPat("_")
 }
 
 /**
@@ -91,7 +89,12 @@ class RsChangeFunctionSignatureConfig private constructor(
     private val originalName: String = function.name.orEmpty()
 
     private val parametersText: String
-        get() = parameters.joinToString(", ") { "${it.patText}: ${it.displayType.text}" }
+        get() {
+            val self = function.selfParameter?.text.orEmpty()
+            val prefix = if (self.isNotEmpty()) ", " else ""
+            val parameters = parameters.joinToString(", ", prefix=prefix) { "${it.pat.text}: ${it.typeReference.text}" }
+            return "${self}$parameters"
+        }
 
     fun signature(): String = buildString {
         visibility?.let { append("${it.text} ") }
@@ -114,9 +117,8 @@ class RsChangeFunctionSignatureConfig private constructor(
 
     companion object {
         fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
-            val factory = RsPsiFactory(function.project)
             val parameters = function.valueParameters.mapIndexed { index, parameter ->
-                Parameter(parameter.pat ?: factory.createPat("_"), parameter.typeReference, index)
+                Parameter(RsPsiFactory(function.project), parameter.pat?.text ?: "_", parameter.typeReference, index)
             }
             return RsChangeFunctionSignatureConfig(
                 function,

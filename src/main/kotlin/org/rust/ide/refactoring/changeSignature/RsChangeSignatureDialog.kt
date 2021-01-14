@@ -8,6 +8,7 @@ package org.rust.ide.refactoring.changeSignature
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapiext.isUnitTestMode
@@ -68,12 +69,11 @@ private class SignatureParameter(val factory: RsPsiFactory, val parameter: Param
     override fun getDefaultValue(): String? = null
     override fun setName(name: String?) {
         if (name != null) {
-            val pat = factory.tryCreatePat(name) ?: return
-            parameter.pat = pat
+            parameter.patText = name
         }
     }
 
-    override fun getTypeText(): String = parameter.displayType?.text.orEmpty()
+    override fun getTypeText(): String = parameter.typeText?.text.orEmpty()
 
     override fun isUseAnySingleVariable(): Boolean = false
     override fun setUseAnySingleVariable(b: Boolean) {}
@@ -90,7 +90,7 @@ private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig)
         return config.parameters.map { SignatureParameter(factory, it) }
     }
 
-    override fun getParametersCount(): Int = config.parameters.size // TODO: self
+    override fun getParametersCount(): Int = config.parameters.size
     override fun getMethod(): PsiElement = config.function
 
     override fun getVisibility(): String = ""
@@ -109,8 +109,8 @@ private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig)
 private class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     : ParameterTableModelItemBase<SignatureParameter>(
     parameter,
-    createTypeCodeFragment(function, parameter.parameter.displayType),
-    createTypeCodeFragment(function, parameter.parameter.displayType),
+    createTypeCodeFragment(function, parameter.parameter.typeReference),
+    createTypeCodeFragment(function, parameter.parameter.typeReference),
 ) {
     override fun isEllipsisType(): Boolean = false
 }
@@ -157,27 +157,16 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
         super.fireTableRowsUpdated(firstRow, lastRow)
     }
 
-    private fun createNewParameter(descriptor: SignatureDescriptor): Parameter {
-        val pat = factory.createPat("p${descriptor.parametersCount}")
-        return Parameter(pat)
-    }
+    private fun createNewParameter(descriptor: SignatureDescriptor): Parameter =
+        Parameter(RsPsiFactory(descriptor.function.project), "p${descriptor.parametersCount}")
 
-    private class SignatureTypeColumn(val descriptor: SignatureDescriptor)
+    private class SignatureTypeColumn(descriptor: SignatureDescriptor)
         : TypeColumn<SignatureParameter, ModelItem>(descriptor.function.project, RsFileType) {
         override fun setValue(item: ModelItem?, value: PsiCodeFragment?) {
             val fragment = value as? RsTypeReferenceCodeFragment ?: return
             if (item != null) {
-                val type = fragment.typeReference
-                // TODO: handle errors
-                if (type != null) {
-                    item.parameter.parameter.changeType(type)
-                }
+                item.parameter.parameter.typeText = fragment.typeReference?.copy() as? RsTypeReference
             }
-        }
-
-        override fun valueOf(item: ModelItem?): PsiCodeFragment? {
-            if (item == null) return null
-            return createTypeCodeFragment(descriptor.function, item.parameter.parameter.displayType)
         }
     }
 }
@@ -190,6 +179,8 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         ModelItem,
         TableModel
         >(project, descriptor, false, descriptor.method) {
+    private var isValid: Boolean = true
+
     private val config: RsChangeFunctionSignatureConfig
         get() = myMethod.config
 
@@ -281,17 +272,37 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         callback: Consumer<MutableSet<RsFunction>>?
     ): CallerChooserBase<RsFunction>? = null
 
-    override fun validateAndCommitData(): String? = updateConfig()
+    override fun validateAndCommitData(): String? = validateAndUpdateData()
+    override fun areButtonsValid(): Boolean = isValid
 
     override fun updateSignature() {
-        updateConfig()
+        updateState()
         super.updateSignature()
+    }
+    override fun updateSignatureAlarmFired() {
+        super.updateSignatureAlarmFired()
+        validateButtons()
+    }
+
+    override fun canRun() {
+        val error = validateAndUpdateData()
+        if (error != null) {
+            throw ConfigurationException(error)
+        }
+
+        super.canRun()
     }
 
     /**
-     * Updates the config from UI elements that are not updated automatically and returns a potential error message.
+     * Updates the config from UI elements that are not updated automatically and also the validity state of the dialog.
      */
-    private fun updateConfig(): String? {
+    private fun updateState() {
+        isValid = validateAndUpdateData() == null
+    }
+
+    private fun validateAndUpdateData(): String? {
+        val factory = RsPsiFactory(config.function.project)
+
         if (myNameField != null) {
             val functionName = myNameField.text
             if (validateName(functionName)) {
@@ -302,7 +313,7 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         if (myReturnTypeField != null) {
             val returnTypeText = myReturnTypeField.text
             val returnType = if (returnTypeText.isBlank()) {
-                RsPsiFactory(config.function.project).createType("()")
+                factory.createType("()")
             } else {
                 (myReturnTypeCodeFragment as? RsTypeReferenceCodeFragment)?.typeReference
             }
@@ -319,6 +330,15 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
                 config.visibility = visField.visibility
             } else {
                 return "Function visibility must be a valid visibility specifier"
+            }
+        }
+
+        for ((index, parameter) in config.parameters.withIndex()) {
+            if (factory.tryCreatePat(parameter.patText) == null) {
+                return "Parameter $index has invalid pattern"
+            }
+            if (parameter.typeText == null) {
+                return "Parameter $index has invalid type"
             }
         }
 
