@@ -24,7 +24,15 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
     override fun findUsages(changeInfo: ChangeInfo?): Array<UsageInfo> {
         val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return emptyArray()
         val function = rsChangeInfo.config.function
-        return findFunctionUsages(function).toTypedArray()
+        val usages = findFunctionUsages(function).toMutableList()
+        if (function.owner is RsAbstractableOwner.Trait) {
+            function.searchForImplementations().filterIsInstance<RsFunction>().forEach { method ->
+                usages.add(RsFunctionUsage.MethodImplementation(method))
+                usages.addAll(findFunctionUsages(method))
+            }
+        }
+
+        return usages.toTypedArray()
     }
 
     override fun findConflicts(changeInfo: ChangeInfo?, refUsages: Ref<Array<UsageInfo>>): MultiMap<PsiElement, String> {
@@ -49,7 +57,13 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
 
         val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return false
         val usage = usageInfo as? RsFunctionUsage ?: return false
-        processFunctionUsage(rsChangeInfo.config, usage)
+        val config = rsChangeInfo.config
+        if (usage is RsFunctionUsage.MethodImplementation) {
+            processFunction(config.function.project, config, usage.overriddenMethod)
+        }
+        else {
+            processFunctionUsage(config, usage)
+        }
 
         return false
     }
@@ -59,14 +73,6 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
         val config = rsChangeInfo.config
         val function = config.function
         val project = function.project
-
-        /* TODO: solve properly
-        if (function.owner is RsAbstractableOwner.Trait) {
-            function.searchForImplementations().forEach {
-                val overridden = (it as? RsFunction) ?: return@forEach
-                processFunction(project, config, overridden, findFunctionUsages(overridden))
-            }
-        }*/
 
         processFunction(project, config, function)
         return false

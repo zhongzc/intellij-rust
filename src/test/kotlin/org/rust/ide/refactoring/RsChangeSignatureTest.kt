@@ -567,32 +567,6 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters[0].changeType(createType("i32"))
     }
 
-    /*fun `test change trait impls`() = doTest("""
-        trait Trait {
-            fn foo/*caret*/(&self);
-        }
-        struct S;
-        impl Trait for S {
-            fn foo(&self) {}
-        }
-        fn test(s: S) {
-            s.foo();
-        }
-    """, """
-        trait Trait {
-            fn bar/*caret*/(&self);
-        }
-        struct S;
-        impl Trait for S {
-            fn bar(&self) {}
-        }
-        fn test(s: S) {
-            s.bar();
-        }
-    """) {
-        name = "bar"
-    }*/
-
     fun `test add async`() = doTest("""
         fn foo/*caret*/(a: u32) {}
     """, """
@@ -729,18 +703,13 @@ Cannot change signature of function with cfg-disabled parameters""")
         name = "bar"
     }
 
-    fun `test name conflict trait impl`() = checkConflicts("""
+    fun `test name conflict trait`() = checkConflicts("""
         struct S;
         trait Trait {
-            fn foo();
+            fn foo/*caret*/();
             fn bar();
         }
-
-        impl Trait for S {
-            fn foo/*caret*/() {}
-            fn bar() {}
-        }
-    """, setOf("The name bar conflicts with an existing item in impl Trait for S (in test_package)")) {
+    """, setOf("The name bar conflicts with an existing item in Trait (in test_package)")) {
         name = "bar"
     }
 
@@ -793,6 +762,64 @@ Cannot change signature of function with cfg-disabled parameters""")
 
     """) {
         visibility = createVisibility("pub(in super)")
+    }
+
+    private val overriddenMethodWithUsagesBefore: String = """
+        trait Trait {
+            fn foo/*trait*/(&self);
+        }
+
+        struct S;
+        impl Trait for S {
+            fn foo/*impl*/(&self) {}
+        }
+
+        fn bar1(t: &dyn Trait) {
+            t.foo();
+        }
+        fn bar2(s: S) {
+            s.foo();
+        }
+        fn bar3<T: Trait>(t: &T) {
+            t.foo();
+        }
+    """
+
+    private val overriddenMethodWithUsagesAfter: String = """
+        trait Trait {
+            fn bar(&self) -> u32;
+        }
+
+        struct S;
+        impl Trait for S {
+            fn bar(&self) -> u32 {}
+        }
+
+        fn bar1(t: &dyn Trait) {
+            t.bar();
+        }
+        fn bar2(s: S) {
+            s.bar();
+        }
+        fn bar3<T: Trait>(t: &T) {
+            t.bar();
+        }
+    """
+
+    fun `test change overridden methods and usages when invoked on trait`() = doTest(
+        overriddenMethodWithUsagesBefore.replace("/*trait*/", "/*caret*/").replace("/*impl*/", ""),
+        overriddenMethodWithUsagesAfter
+    ) {
+        name = "bar"
+        returnTypeDisplay = createType("u32")
+    }
+
+    fun `test change overridden methods and usages when invoked on impl`() = doTest(
+        overriddenMethodWithUsagesBefore.replace("/*impl*/", "/*caret*/").replace("/*trait*/", ""),
+        overriddenMethodWithUsagesAfter
+    ) {
+        name = "bar"
+        returnTypeDisplay = createType("u32")
     }
 
     private fun RsChangeFunctionSignatureConfig.swapParameters(a: Int, b: Int) {

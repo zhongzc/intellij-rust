@@ -29,6 +29,7 @@ sealed class RsFunctionUsage(element: RsElement) : UsageInfo(element) {
     }
 
     class Reference(val path: RsPath) : RsFunctionUsage(path)
+    class MethodImplementation(val overriddenMethod: RsFunction) : RsFunctionUsage(overriddenMethod)
 }
 
 fun findFunctionUsages(function: RsFunction): List<RsFunctionUsage> {
