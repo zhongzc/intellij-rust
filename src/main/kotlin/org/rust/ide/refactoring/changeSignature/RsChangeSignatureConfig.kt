@@ -72,11 +72,7 @@ class RsChangeFunctionSignatureConfig private constructor(
     var isAsync: Boolean = false,
     var isUnsafe: Boolean = false
 ) : RsFunctionSignatureConfig(function) {
-    override val parameterTypes: List<Ty>
-        get() = parameters.map { it.type }
-
-    override val returnType: Ty
-        get() = returnTypeDisplay?.type ?: TyUnit
+    override fun typeParameters(): List<RsTypeParameter> = function.typeParameters
 
     val returnTypeReference: RsTypeReference
         get() = returnTypeDisplay ?: RsPsiFactory(function.project).createType("()")
@@ -87,6 +83,9 @@ class RsChangeFunctionSignatureConfig private constructor(
     val parameters: MutableList<Parameter> = parameters.toMutableList()
 
     private val originalName: String = function.name.orEmpty()
+
+    val returnType: Ty
+        get() = returnTypeDisplay?.type ?: TyUnit
 
     private val parametersText: String
         get() {

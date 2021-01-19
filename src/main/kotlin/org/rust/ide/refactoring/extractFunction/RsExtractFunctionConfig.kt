@@ -139,6 +139,32 @@ class RsExtractFunctionConfig private constructor(
     val signature: String
         get() = signature(false)
 
+    private val parameterTypes: List<Ty>
+        get() = parameters.mapNotNull { it.type }
+
+    private val returnType: Ty
+        get() = returnValue?.type ?: TyUnit
+
+    private fun typeParameterBounds(): Map<Ty, Set<Ty>> =
+        function.typeParameters.associate { typeParameter ->
+            val type = typeParameter.declaredType
+            val bounds = mutableSetOf<Ty>()
+            typeParameter.bounds.flatMapTo(bounds) {
+                it.bound.traitRef?.path?.typeArguments?.flatMap { it.type.types() }.orEmpty()
+            }
+            type to bounds
+        }
+
+    override fun typeParameters(): List<RsTypeParameter> {
+        val bounds = typeParameterBounds()
+        val paramAndReturnTypes = mutableSetOf<Ty>()
+        (parameterTypes + returnType).forEach {
+            paramAndReturnTypes.addAll(it.types())
+            paramAndReturnTypes.addAll(it.dependTypes(bounds))
+        }
+        return function.typeParameters.filter { it.declaredType in paramAndReturnTypes }
+    }
+
     /**
      * - Original signature is used when the extracted function is inserting to the source code
      * - Real signature is used when the signature is rendering inside [DialogExtractFunctionUi]
@@ -191,12 +217,6 @@ class RsExtractFunctionConfig private constructor(
             }
             append(body)
         }
-
-    override val parameterTypes: List<Ty>
-        get() = parameters.mapNotNull { it.type }
-
-    override val returnType: Ty
-        get() = returnValue?.type ?: TyUnit
 
     companion object {
         fun create(file: PsiFile, start: Int, end: Int): RsExtractFunctionConfig? {
