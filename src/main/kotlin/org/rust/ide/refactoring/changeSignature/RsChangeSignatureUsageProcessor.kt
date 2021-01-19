@@ -13,7 +13,6 @@ import com.intellij.refactoring.changeSignature.ChangeSignatureUsageProcessor
 import com.intellij.refactoring.rename.ResolveSnapshotProvider
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.containers.MultiMap
-import org.jetbrains.annotations.NotNull
 import org.rust.RsBundle
 import org.rust.ide.presentation.getPresentation
 import org.rust.lang.core.psi.RsFunction
@@ -37,7 +36,7 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
 
     override fun findConflicts(changeInfo: ChangeInfo?, refUsages: Ref<Array<UsageInfo>>): MultiMap<PsiElement, String> {
         val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return MultiMap.empty()
-        val map = MultiMap.create<PsiElement, String>()
+        val map = MultiMap<PsiElement, String>()
         val config = rsChangeInfo.config
         val function = config.function
 
@@ -55,17 +54,16 @@ class RsChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
     ): Boolean {
         if (beforeMethodChange) return false
 
-        val rsChangeInfo = changeInfo as? RsSignatureChangeInfo ?: return false
-        val usage = usageInfo as? RsFunctionUsage ?: return false
-        val config = rsChangeInfo.config
-        if (usage is RsFunctionUsage.MethodImplementation) {
-            processFunction(config.function.project, config, usage.overriddenMethod)
-        }
-        else {
-            processFunctionUsage(config, usage)
+        if (changeInfo !is RsSignatureChangeInfo) return false
+        if (usageInfo !is RsFunctionUsage) return false
+        val config = changeInfo.config
+        if (usageInfo is RsFunctionUsage.MethodImplementation) {
+            processFunction(config.function.project, config, usageInfo.overriddenMethod)
+        } else {
+            processFunctionUsage(config, usageInfo)
         }
 
-        return false
+        return true
     }
 
     override fun processPrimaryMethod(changeInfo: ChangeInfo?): Boolean {
@@ -101,17 +99,17 @@ private fun findVisibilityConflicts(
     function: RsFunction,
     config: RsChangeFunctionSignatureConfig,
     usages: Array<UsageInfo>,
-    map: @NotNull MultiMap<PsiElement, String>
+    map: MultiMap<PsiElement, String>
 ) {
     val functionUsages = usages.filterIsInstance<RsFunctionUsage>()
     val clone = function.copy() as RsFunction
     changeVisibility(clone, config)
 
     for (usage in functionUsages) {
-        val sourceModule = (usage.element as? RsElement)?.containingMod ?: continue
+        val sourceModule = usage.element.containingMod
         if (!clone.isVisibleFrom(sourceModule)) {
             val moduleName = sourceModule.qualifiedName.orEmpty()
-            map.putValue(function, RsBundle.message("refactoring.change.signature.visibility.conflict", moduleName))
+            map.putValue(usage.element, RsBundle.message("refactoring.change.signature.visibility.conflict", moduleName))
         }
     }
 }
@@ -119,14 +117,15 @@ private fun findVisibilityConflicts(
 private fun findNameConflicts(
     function: RsFunction,
     config: RsChangeFunctionSignatureConfig,
-    map: @NotNull MultiMap<PsiElement, String>
+    map: MultiMap<PsiElement, String>
 ) {
     val (owner, items) = when (val owner = function.owner) {
         is RsAbstractableOwner.Impl -> owner.impl to owner.impl.expandedMembers
         is RsAbstractableOwner.Trait -> owner.trait to owner.trait.expandedMembers
         else -> {
             val parent = function.parent as RsItemsOwner
-            parent to parent.itemsAndMacros.filterIsInstance<RsItemElement>().toList()
+            val items = parent.expandedItemsCached.named[config.name] ?: return
+            parent to items
         }
     }
     for (item in items) {
@@ -135,7 +134,7 @@ private fun findNameConflicts(
             val presentation = getPresentation(owner)
             val prefix = if (owner is RsImplItem) "impl " else ""
             val ownerName = "${prefix}${presentation.presentableText.orEmpty()} ${presentation.locationString.orEmpty()}"
-            map.putValue(function, RsBundle.message("refactoring.change.signature.name.conflict", config.name, ownerName))
+            map.putValue(item, RsBundle.message("refactoring.change.signature.name.conflict", config.name, ownerName))
         }
     }
 }

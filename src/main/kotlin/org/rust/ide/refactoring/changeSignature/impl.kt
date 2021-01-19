@@ -18,7 +18,7 @@ import org.rust.lang.core.psi.ext.*
 import org.rust.lang.core.types.ty.TyUnit
 import org.rust.stdext.mapToMutableList
 
-sealed class RsFunctionUsage(element: RsElement) : UsageInfo(element) {
+sealed class RsFunctionUsage(val element: RsElement) : UsageInfo(element) {
     open val isCallUsage: Boolean = false
 
     class FunctionCall(val call: RsCallExpr) : RsFunctionUsage(call) {
@@ -33,15 +33,13 @@ sealed class RsFunctionUsage(element: RsElement) : UsageInfo(element) {
     class MethodImplementation(val overriddenMethod: RsFunction) : RsFunctionUsage(overriddenMethod)
 }
 
-fun findFunctionUsages(function: RsFunction): List<RsFunctionUsage> {
-    return function.findUsages().map {
-        when (it) {
-            is RsCallExpr -> RsFunctionUsage.FunctionCall(it)
-            is RsMethodCall -> RsFunctionUsage.MethodCall(it)
-            is RsPath -> RsFunctionUsage.Reference(it)
-            else -> error("unreachable")
-        }
-    }.toList()
+fun findFunctionUsages(function: RsFunction): Sequence<RsFunctionUsage> = function.findUsages().map {
+    when (it) {
+        is RsCallExpr -> RsFunctionUsage.FunctionCall(it)
+        is RsMethodCall -> RsFunctionUsage.MethodCall(it)
+        is RsPath -> RsFunctionUsage.Reference(it)
+        else -> error("unreachable")
+    }
 }
 
 fun processFunctionUsage(config: RsChangeFunctionSignatureConfig, usage: RsFunctionUsage) {
@@ -67,15 +65,9 @@ fun processFunction(
     }
     changeVisibility(function, config)
     changeReturnType(factory, function, config)
-    val allRenames = mutableMapOf<RsElement, String>()
-    if (config.nameChanged()) {
-        allRenames[function] = config.name
-    }
+
     val parameterRenames = changeParameters(factory, function, config, buildParameterOperations(config))
-    for ((parameter, newName) in parameterRenames) {
-        allRenames[parameter] = newName
-    }
-    renameParameters(factory, parameterRenames, allRenames)
+    renameParameters(factory, parameterRenames)
     changeAsync(factory, function, config)
     changeUnsafe(factory, function, config)
 }
@@ -180,26 +172,18 @@ private fun changeParameters(
     return parameterRenames
 }
 
-private fun renameParameters(
-    factory: RsPsiFactory,
-    parameterRenames: Map<RsValueParameter, String>,
-    allRenames: Map<RsElement, String>) {
+private fun renameParameters(factory: RsPsiFactory, parameterRenames: Map<RsValueParameter, String>) {
     for ((parameter, newName) in parameterRenames) {
-        renameParameter(factory, parameter, newName, allRenames)
+        renameParameter(factory, parameter, newName)
     }
 }
 
-private fun renameParameter(
-    factory: RsPsiFactory,
-    parameter: RsValueParameter,
-    newName: String,
-    allRenames: Map<RsElement, String>
-) {
+private fun renameParameter(factory: RsPsiFactory, parameter: RsValueParameter, newName: String) {
     val identifier = factory.createIdentifier(newName)
 
     val binding = parameter.pat?.findBinding()
     if (binding != null) {
-        val usages = RenameUtil.findUsages(binding, newName, false, false, allRenames)
+        val usages = RenameUtil.findUsages(binding, newName, false, false, emptyMap())
         for (info in usages) {
             RenameUtil.rename(info, newName)
         }
@@ -402,5 +386,5 @@ private sealed class ParameterOperation {
     class Move(val originalIndex: Int) : ParameterOperation()
 }
 
-private fun areTypesEqual(t1: RsTypeReference?, t2: RsTypeReference?): Boolean = (t1?.text ?: "()") == (t2?.text
-    ?: "()")
+private fun areTypesEqual(t1: RsTypeReference?, t2: RsTypeReference?): Boolean
+    = (t1?.text ?: "()") == (t2?.text ?: "()")

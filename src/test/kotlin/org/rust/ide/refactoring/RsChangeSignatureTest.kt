@@ -831,14 +831,7 @@ Cannot change signature of function with cfg-disabled parameters""")
 
     private fun createVisibility(vis: String): RsVis = RsPsiFactory(project).createVis(vis)
     private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
-    private fun parameter(patText: String, type: String): Parameter {
-        val factory = RsPsiFactory(project)
-        return Parameter(
-            factory,
-            patText,
-            type
-        )
-    }
+    private fun parameter(patText: String, type: String): Parameter = Parameter(RsPsiFactory(project), patText, type)
 
     /**
      * Refer to existing type in the test code snippet.

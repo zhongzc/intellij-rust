@@ -28,34 +28,8 @@ class RsChangeSignatureProcessor(project: Project, changeInfo: ChangeInfo)
         BaseUsageViewDescriptor(changeInfo.method)
 
     override fun preprocessUsages(refUsages: Ref<Array<UsageInfo?>>): Boolean {
-        // Inspired by [ChangeSignatureProcessor]
-        for (processor in ChangeSignatureUsageProcessor.EP_NAME.extensions) {
-            if (!processor.setupDefaultValues(myChangeInfo, refUsages, myProject)) return false
-        }
-
-        val conflictDescriptions = MultiMap<PsiElement, String>()
-        collectConflictsFromExtensions(refUsages, conflictDescriptions, myChangeInfo)
-
-        val usagesIn = refUsages.get()
-        RenameUtil.addConflictDescriptions(usagesIn, conflictDescriptions)
-
-        val usagesSet = ContainerUtil.set(*usagesIn)
-        RenameUtil.removeConflictUsages(usagesSet)
-
-        if (!conflictDescriptions.isEmpty) {
-            if (isUnitTestMode) {
-                throw ConflictsInTestsException(conflictDescriptions.values())
-            }
-            if (myPrepareSuccessfulSwingThreadCallback != null) {
-                val dialog = prepareConflictsDialog(conflictDescriptions, usagesIn)
-                if (!dialog.showAndGet()) {
-                    if (dialog.isShowConflicts) prepareSuccessful()
-                    return false
-                }
-            }
-        }
-        refUsages.set(usagesSet.toTypedArray())
-        prepareSuccessful()
-        return true
+        val conflicts = MultiMap<PsiElement, String>()
+        collectConflictsFromExtensions(refUsages, conflicts, myChangeInfo)
+        return showConflicts(conflicts, refUsages.get())
     }
 }

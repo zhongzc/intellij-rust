@@ -158,7 +158,7 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
     }
 
     private fun createNewParameter(descriptor: SignatureDescriptor): Parameter =
-        Parameter(RsPsiFactory(descriptor.function.project), "p${descriptor.parametersCount}")
+        Parameter(factory, "p${descriptor.parametersCount}")
 
     private class SignatureTypeColumn(descriptor: SignatureDescriptor)
         : TypeColumn<SignatureParameter, ModelItem>(descriptor.function.project, RsFileType) {

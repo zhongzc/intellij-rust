@@ -92,10 +92,9 @@ class RsChangeFunctionSignatureConfig private constructor(
 
     private val parametersText: String
         get() {
-            val self = function.selfParameter?.text.orEmpty()
-            val prefix = if (self.isNotEmpty()) ", " else ""
-            val parameters = parameters.joinToString(", ", prefix = prefix) { "${it.pat.text}: ${it.typeReference.text}" }
-            return "${self}$parameters"
+            val selfText = listOfNotNull(function.selfParameter?.text)
+            val parametersText = parameters.map { "${it.pat.text}: ${it.typeReference.text}" }
+            return (selfText + parametersText).joinToString(", ")
         }
 
     fun signature(): String = buildString {
