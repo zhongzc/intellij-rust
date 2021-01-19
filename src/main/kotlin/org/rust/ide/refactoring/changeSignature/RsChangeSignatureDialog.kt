@@ -73,7 +73,7 @@ private class SignatureParameter(val factory: RsPsiFactory, val parameter: Param
         }
     }
 
-    override fun getTypeText(): String = parameter.typeText?.text.orEmpty()
+    override fun getTypeText(): String = parameter.typeText
 
     override fun isUseAnySingleVariable(): Boolean = false
     override fun setUseAnySingleVariable(b: Boolean) {}
@@ -165,7 +165,7 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
         override fun setValue(item: ModelItem?, value: PsiCodeFragment?) {
             val fragment = value as? RsTypeReferenceCodeFragment ?: return
             if (item != null) {
-                item.parameter.parameter.typeText = fragment.typeReference?.copy() as? RsTypeReference
+                item.parameter.parameter.typeText = fragment.text
             }
         }
     }
@@ -334,11 +334,14 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
         }
 
         for ((index, parameter) in config.parameters.withIndex()) {
-            if (factory.tryCreatePat(parameter.patText) == null) {
+            if (parameter.parsePat() == null) {
                 return "Parameter $index has invalid pattern"
             }
-            if (parameter.typeText == null) {
-                return "Parameter $index has invalid type"
+            if (parameter.typeText.isBlank()) {
+                return "Please enter type for parameter $index"
+            }
+            if (parameter.parseTypeReference() == null) {
+                return "Type entered for parameter $index is invalid"
             }
         }
 

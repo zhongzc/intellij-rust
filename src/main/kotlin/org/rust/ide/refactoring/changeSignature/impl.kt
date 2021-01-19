@@ -143,7 +143,7 @@ private fun changeParameters(
                 val newParameter = factory.createValueParameter(parameter.patText, typeReference, reference = false)
                 val anchor = findAnchorToInsertItem(parameters, function, index)
                 insertItemWithComma(factory, newParameter, parameters, anchor)
-                RsImportHelper.importTypeReferencesFromTy(function, parameter.type, useAliases = true)
+                RsImportHelper.importTypeReferencesFromElements(function, setOf(parameter.typeReference), useAliases = true)
             }
             is ParameterOperation.Move -> {
                 deleteItem(parameterList, index)
@@ -167,6 +167,7 @@ private fun changeParameters(
                 }
                 if (!areTypesEqual(parameter.typeReference, currentParameter.typeReference)) {
                     currentParameter.typeReference?.replace(parameter.typeReference)
+                    // TODO: import + test
                 }
             }
         }

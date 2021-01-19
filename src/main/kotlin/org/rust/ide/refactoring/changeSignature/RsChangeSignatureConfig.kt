@@ -44,16 +44,19 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
 class Parameter(
     val factory: RsPsiFactory,
     var patText: String,
-    var typeText: RsTypeReference? = null,
+    var typeText: String = "",
     val index: Int = NEW_PARAMETER
 ) {
     val type: Ty
-        get() = typeText?.type ?: TyUnit
+        get() = parseTypeReference()?.type ?: TyUnit
     val typeReference: RsTypeReference
-        get() = typeText ?: factory.createType("()")
+        get() = parseTypeReference() ?: factory.createType("()")
+
+    fun parseTypeReference(): RsTypeReference? = factory.tryCreateType(typeText)
+    fun parsePat(): RsPat? = factory.tryCreatePat(patText)
 
     val pat: RsPat
-        get() = factory.tryCreatePat(patText) ?: factory.createPat("_")
+        get() = parsePat() ?: factory.createPat("_")
 }
 
 /**
@@ -91,7 +94,7 @@ class RsChangeFunctionSignatureConfig private constructor(
         get() {
             val self = function.selfParameter?.text.orEmpty()
             val prefix = if (self.isNotEmpty()) ", " else ""
-            val parameters = parameters.joinToString(", ", prefix=prefix) { "${it.pat.text}: ${it.typeReference.text}" }
+            val parameters = parameters.joinToString(", ", prefix = prefix) { "${it.pat.text}: ${it.typeReference.text}" }
             return "${self}$parameters"
         }
 
@@ -117,7 +120,8 @@ class RsChangeFunctionSignatureConfig private constructor(
     companion object {
         fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
             val parameters = function.valueParameters.mapIndexed { index, parameter ->
-                Parameter(RsPsiFactory(function.project), parameter.pat?.text ?: "_", parameter.typeReference, index)
+                Parameter(RsPsiFactory(function.project), parameter.pat?.text
+                    ?: "_", parameter.typeReference?.text.orEmpty(), index)
             }
             return RsChangeFunctionSignatureConfig(
                 function,

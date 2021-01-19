@@ -309,7 +309,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo();
         }
     """) {
-        parameters.add(parameter("a", createType("u32")))
+        parameters.add(parameter("a", "u32"))
     }
 
     fun `test add last parameter`() = doTest("""
@@ -323,7 +323,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, );
         }
     """) {
-        parameters.add(parameter("b", createType("u32")))
+        parameters.add(parameter("b", "u32"))
     }
 
     fun `test add multiple parameters`() = doTest("""
@@ -337,8 +337,8 @@ Cannot change signature of function with cfg-disabled parameters""")
             foo(0, , );
         }
     """) {
-        parameters.add(parameter("b", createType("u32")))
-        parameters.add(parameter("c", createType("u32")))
+        parameters.add(parameter("b", "u32"))
+        parameters.add(parameter("c", "u32"))
     }
 
     fun `test add parameter with lifetime`() = doTest("""
@@ -349,7 +349,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                           //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(parameter("b", parameter.typeReference!!))
+        parameters.add(parameter("b", parameter.typeReference!!.text))
     }
 
     fun `test add parameter with default type arguments`() = doTest("""
@@ -362,7 +362,7 @@ Cannot change signature of function with cfg-disabled parameters""")
                       //^
     """) {
         val parameter = findElementInEditor<RsValueParameter>()
-        parameters.add(parameter("b", parameter.typeReference!!))
+        parameters.add(parameter("b", parameter.typeReference!!.text))
     }
 
     fun `test add parameter to method`() = doTest("""
@@ -382,7 +382,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             s.foo();
         }
     """) {
-        parameters.add(parameter("a", createType("u32")))
+        parameters.add(parameter("a", "u32"))
     }
 
     fun `test swap parameters`() = doTest("""
@@ -456,7 +456,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             S::foo(&s, );
         }
     """) {
-        parameters.add(parameter("a", createType("u32")))
+        parameters.add(parameter("a", "u32"))
     }
 
     fun `test delete method parameter UFCS`() = doTest("""
@@ -549,7 +549,7 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         parameters[0] = parameters[1]
-        parameters[1] = parameter("a", createType("u32"))
+        parameters[1] = parameter("a", "u32")
     }
 
     fun `test rename parameter ident with ident`() = doTest("""
@@ -595,7 +595,7 @@ Cannot change signature of function with cfg-disabled parameters""")
     """, """
         fn foo(a: i32) {}
     """) {
-        parameters[0].typeText = createType("i32")
+        parameters[0].typeText = "i32"
     }
 
     fun `test add async`() = doTest("""
@@ -683,7 +683,7 @@ Cannot change signature of function with cfg-disabled parameters""")
             fn baz/*caret*/(s: S) {}
         }
     """) {
-        parameters.add(parameter("s", referToType("S", findElementInEditor<RsStructItem>())))
+        parameters.add(parameter("s", referToType("S", findElementInEditor<RsStructItem>()).text))
     }
 
     fun `test name conflict module`() = checkConflicts("""
@@ -831,7 +831,7 @@ Cannot change signature of function with cfg-disabled parameters""")
 
     private fun createVisibility(vis: String): RsVis = RsPsiFactory(project).createVis(vis)
     private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
-    private fun parameter(patText: String, type: RsTypeReference): Parameter {
+    private fun parameter(patText: String, type: String): Parameter {
         val factory = RsPsiFactory(project)
         return Parameter(
             factory,
