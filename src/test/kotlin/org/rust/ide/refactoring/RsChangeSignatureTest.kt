@@ -741,6 +741,21 @@ Cannot change signature of function with cfg-disabled parameters""")
         visibility = null
     }
 
+    @MockAdditionalCfgOptions("intellij_rust")
+    fun `test no visibility conflict disabled function`() = doTest("""
+        fn bar/*caret*/() {}
+
+        #[cfg(not(intellij_rust))]
+        fn foo() {}
+    """, """
+        fn foo/*caret*/() {}
+
+        #[cfg(not(intellij_rust))]
+        fn foo() {}
+    """) {
+        name = "foo"
+    }
+
     fun `test no visibility conflict restricted mod`() = doTest("""
         mod foo2 {
             mod foo {

@@ -130,6 +130,8 @@ private fun findNameConflicts(
     }
     for (item in items) {
         if (item == function) continue
+        if (!item.isEnabledByCfgSelf) continue
+
         if (item.name == config.name) {
             val presentation = getPresentation(owner)
             val prefix = if (owner is RsImplItem) "impl " else ""
