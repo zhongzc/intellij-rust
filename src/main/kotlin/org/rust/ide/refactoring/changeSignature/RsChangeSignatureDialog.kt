@@ -109,8 +109,8 @@ private class SignatureDescriptor(val config: RsChangeFunctionSignatureConfig)
 private class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     : ParameterTableModelItemBase<SignatureParameter>(
     parameter,
-    createTypeCodeFragment(function, parameter.parameter.typeReference),
-    createTypeCodeFragment(function, parameter.parameter.typeReference),
+    createTypeCodeFragment(function, parameter.parameter.parseTypeReference()),
+    createTypeCodeFragment(function, parameter.parameter.parseTypeReference()),
 ) {
     override fun isEllipsisType(): Boolean = false
 }
