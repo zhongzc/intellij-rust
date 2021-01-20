@@ -16,6 +16,7 @@ import org.rust.ide.refactoring.changeSignature.RsChangeFunctionSignatureConfig
 import org.rust.ide.refactoring.changeSignature.withMockChangeFunctionSignature
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.RsElement
+import org.rust.stdext.removeLast
 
 class RsChangeSignatureTest : RsTestBase() {
     @MockAdditionalCfgOptions("intellij_rust")
@@ -290,6 +291,26 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.removeAt(parameters.size - 1)
     }
 
+    fun `test remove last parameter (multiline)`() = doTest("""
+        fn foo/*caret*/(
+            a: u32,
+            b: u32,
+        ) {}
+        fn bar() {
+            foo(
+                0,
+                1
+            );
+        }
+    """, """
+        fn foo(a: u32) {}
+        fn bar() {
+            foo(0);
+        }
+    """) {
+        parameters.removeLast()
+    }
+
     fun `test remove last parameter trailing comma`() = doTest("""
         fn foo/*caret*/(a: u32,) {}
     """, """
@@ -324,6 +345,34 @@ Cannot change signature of function with cfg-disabled parameters""")
         }
     """) {
         parameters.add(parameter("b", "u32"))
+    }
+
+    fun `test add parameter in the middle (multiline)`() = doTest("""
+        fn foo/*caret*/(
+            a: u32,
+            c: u32,
+        ) {}
+        fn bar() {
+            foo(
+                0,
+                1,
+            );
+        }
+    """, """
+        fn foo(
+            a: u32,
+            b: u32,
+            c: u32,
+        ) {}
+        fn bar() {
+            foo(
+                0,
+                ,
+                1,
+            );
+        }
+    """) {
+        parameters.add(1, parameter("b", "u32"))
     }
 
     fun `test add multiple parameters`() = doTest("""

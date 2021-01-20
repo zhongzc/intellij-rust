@@ -69,7 +69,7 @@ class Parameter(
 class RsChangeFunctionSignatureConfig private constructor(
     function: RsFunction,
     var name: String,
-    parameters: List<Parameter>,
+    val originalParameters: List<Parameter>,
     var returnTypeDisplay: RsTypeReference?,
     var visibility: RsVis? = null,
     var isAsync: Boolean = false,
@@ -83,7 +83,7 @@ class RsChangeFunctionSignatureConfig private constructor(
     val allowsVisibilityChange: Boolean
         get() = !(function.owner is RsAbstractableOwner.Trait || function.owner.isTraitImpl)
 
-    val parameters: MutableList<Parameter> = parameters.toMutableList()
+    val parameters: MutableList<Parameter> = originalParameters.toMutableList()
 
     private val originalName: String = function.name.orEmpty()
 
@@ -115,6 +115,7 @@ class RsChangeFunctionSignatureConfig private constructor(
 
     fun createChangeInfo(): ChangeInfo = RsSignatureChangeInfo(this)
     fun nameChanged(): Boolean = name != originalName
+    fun parametersChanged(): Boolean = parameters.map { it.index } != originalParameters.indices.toList()
 
     companion object {
         fun create(function: RsFunction): RsChangeFunctionSignatureConfig {
