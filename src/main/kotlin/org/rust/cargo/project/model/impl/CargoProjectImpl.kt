@@ -39,12 +39,9 @@ import com.intellij.util.io.systemIndependentPath
 import org.jdom.Element
 import org.jetbrains.annotations.TestOnly
 import org.rust.cargo.CargoConstants
-import org.rust.cargo.project.model.CargoProject
+import org.rust.cargo.project.model.*
 import org.rust.cargo.project.model.CargoProject.UpdateStatus
-import org.rust.cargo.project.model.CargoProjectsService
 import org.rust.cargo.project.model.CargoProjectsService.CargoProjectsListener
-import org.rust.cargo.project.model.RustcInfo
-import org.rust.cargo.project.model.setup
 import org.rust.cargo.project.settings.RustProjectSettingsService
 import org.rust.cargo.project.settings.RustProjectSettingsService.RustSettingsChangedEvent
 import org.rust.cargo.project.settings.RustProjectSettingsService.RustSettingsListener
@@ -450,7 +447,8 @@ data class CargoProjectImpl(
     override val rustcInfo: RustcInfo? = null,
     override val workspaceStatus: UpdateStatus = UpdateStatus.NeedsUpdate,
     override val stdlibStatus: UpdateStatus = UpdateStatus.NeedsUpdate,
-    override val rustcInfoStatus: UpdateStatus = UpdateStatus.NeedsUpdate
+    override val rustcInfoStatus: UpdateStatus = UpdateStatus.NeedsUpdate,
+    override val rustupInfoStatus: UpdateStatus = UpdateStatus.NeedsUpdate
 ) : UserDataHolderBase(), CargoProject {
     override val project get() = projectService.project
 

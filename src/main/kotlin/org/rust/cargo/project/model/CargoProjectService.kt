@@ -97,11 +97,13 @@ interface CargoProject : UserDataHolderEx {
     val workspaceStatus: UpdateStatus
     val stdlibStatus: UpdateStatus
     val rustcInfoStatus: UpdateStatus
+    val rustupInfoStatus: UpdateStatus
 
     val mergedStatus: UpdateStatus
         get() = workspaceStatus
             .merge(stdlibStatus)
             .merge(rustcInfoStatus)
+            .merge(rustupInfoStatus)
 
     val userDisabledFeatures: UserDisabledFeatures
 
@@ -114,7 +116,7 @@ interface CargoProject : UserDataHolderEx {
     }
 }
 
-data class RustcInfo(val sysroot: String, val version: RustcVersion?)
+data class RustcInfo(val sysroot: String, val version: RustcVersion?, val targets: List<String>? = null)
 
 fun guessAndSetupRustProject(project: Project, explicitRequest: Boolean = false): Boolean {
     if (!explicitRequest) {

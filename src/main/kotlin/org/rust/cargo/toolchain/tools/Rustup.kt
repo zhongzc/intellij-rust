@@ -62,7 +62,7 @@ class Rustup(toolchain: RsToolchain, private val projectDirectory: Path) : RsToo
             workingDirectory = projectDirectory
         ).execute()?.stdoutLines?.map { Component.from(it) }.orEmpty()
 
-    private fun listTargets(): List<Target> =
+    fun listTargets(): List<Target> =
         createBaseCommandLine(
             "target", "list",
             workingDirectory = projectDirectory
