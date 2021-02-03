@@ -11,6 +11,8 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.util.Key
 import org.rust.cargo.runconfig.buildtool.CargoBuildManager.getBuildConfiguration
 import org.rust.cargo.runconfig.command.CargoCommandConfiguration
+import org.rust.cargo.toolchain.tools.Rustup
+import org.rust.openapiext.project
 
 class CargoBuildTaskProvider : RsBuildTaskProvider<CargoBuildTaskProvider.BuildTask>() {
     override fun getId(): Key<BuildTask> = ID
@@ -26,6 +28,16 @@ class CargoBuildTaskProvider : RsBuildTaskProvider<CargoBuildTaskProvider.BuildT
     ): Boolean {
         if (configuration !is CargoCommandConfiguration) return false
         val buildConfiguration = getBuildConfiguration(configuration) ?: return true
+
+        val project = context.project ?: return false
+        val projectDirectory = configuration.workingDirectory ?: return false
+
+        val configArgs = configuration.command.split(' ')
+        val targetFlagIdx = configArgs.indexOf("--target")
+        val targetTriple = if (targetFlagIdx != -1) configArgs.getOrNull(targetFlagIdx + 1).orEmpty() else ""
+
+        if (Rustup.checkNeedInstallTarget(project, projectDirectory, targetTriple)) return false
+
         return doExecuteTask(buildConfiguration, environment)
     }
 
