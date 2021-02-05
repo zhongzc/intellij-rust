@@ -42,9 +42,9 @@ class RsSignatureChangeInfo(val config: RsChangeFunctionSignatureConfig) : Chang
  * This type is needed to distinguish from empty and invalid type references entered in the dialog.
  */
 sealed class ParameterType {
-    object Empty: ParameterType()
-    class Invalid(override val text: String): ParameterType()
-    class Valid(val typeReference: RsTypeReference): ParameterType() {
+    object Empty : ParameterType()
+    class Invalid(override val text: String) : ParameterType()
+    class Valid(val typeReference: RsTypeReference) : ParameterType() {
         override val text: String = typeReference.text
     }
 
@@ -55,6 +55,7 @@ sealed class ParameterType {
             if (typeReference == null) return Empty
             return Valid(typeReference)
         }
+
         fun fromText(typeReference: RsTypeReference?, text: String): ParameterType = when {
             text.isBlank() -> Empty
             typeReference == null -> Invalid(text)
@@ -70,7 +71,8 @@ class Parameter(
     val factory: RsPsiFactory,
     var patText: String,
     var type: ParameterType,
-    val index: Int = NEW_PARAMETER
+    val index: Int = NEW_PARAMETER,
+    var defaultValueText: String? = null,
 ) {
     val typeReference: RsTypeReference
         get() = parseTypeReference() ?: factory.createType("()")
@@ -80,6 +82,9 @@ class Parameter(
 
     val pat: RsPat
         get() = parsePat() ?: factory.createPat("_")
+
+    val defaultValue: RsExpr?
+        get() = factory.tryCreateExpression(defaultValueText.orEmpty())
 }
 
 /**

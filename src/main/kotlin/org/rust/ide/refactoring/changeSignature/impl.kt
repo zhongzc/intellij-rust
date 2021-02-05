@@ -134,7 +134,7 @@ private fun changeArguments(
         if (isUFCS) argumentsList.first() else null,
         if (isUFCS) argumentsList.drop(1) else argumentsList,
         config
-    ) { null }
+    ) { it.defaultValue }
 }
 
 private fun changeParameters(factory: RsPsiFactory, function: RsFunction, config: RsChangeFunctionSignatureConfig) {

@@ -510,6 +510,34 @@ Cannot change signature of function with cfg-disabled parameters""")
         parameters.add(parameter("a", "u32"))
     }
 
+    fun `test add only parameter with default value`() = doTest("""
+        fn foo/*caret*/() {}
+        fn bar() {
+            foo();
+        }
+    """, """
+        fn foo(a: u32) {}
+        fn bar() {
+            foo(10);
+        }
+    """) {
+        parameters.add(parameter("a", "u32", defaultValue = "10"))
+    }
+
+    fun `test add last parameter with default value`() = doTest("""
+        fn foo/*caret*/(a: u32) {}
+        fn bar() {
+            foo(0);
+        }
+    """, """
+        fn foo(a: u32, b: u32) {}
+        fn bar() {
+            foo(0, 10);
+        }
+    """) {
+        parameters.add(parameter("b", "u32", defaultValue = "10"))
+    }
+
     fun `test swap parameters`() = doTest("""
         fn foo/*caret*/(a: u32, b: u32) {}
         fn bar() {
@@ -1079,9 +1107,10 @@ Cannot change signature of function with cfg-disabled parameters""")
     private fun createVisibility(vis: String): RsVis = RsPsiFactory(project).createVis(vis)
     private fun createType(text: String): RsTypeReference = RsPsiFactory(project).createType(text)
     private fun createParamType(text: String): ParameterType = ParameterType.Valid(createType(text))
-    private fun parameter(patText: String, type: String): Parameter = parameter(patText, createType(type))
-    private fun parameter(patText: String, type: RsTypeReference): Parameter
-        = Parameter(RsPsiFactory(project), patText, ParameterType.Valid(type))
+    private fun parameter(patText: String, type: String, defaultValue: String? = null): Parameter
+        = parameter(patText, createType(type), defaultValue = defaultValue)
+    private fun parameter(patText: String, type: RsTypeReference, defaultValue: String? = null): Parameter
+        = Parameter(RsPsiFactory(project), patText, ParameterType.Valid(type), defaultValueText = defaultValue)
 
     /**
      * Refer to existing type in the test code snippet.

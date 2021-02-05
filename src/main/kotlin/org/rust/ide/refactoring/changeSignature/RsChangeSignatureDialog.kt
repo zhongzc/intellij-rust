@@ -29,6 +29,7 @@ import org.rust.lang.RsFileType
 import org.rust.lang.core.macros.setContext
 import org.rust.lang.core.psi.*
 import org.rust.lang.core.psi.ext.RsElement
+import org.rust.lang.core.psi.ext.RsItemsOwner
 import org.rust.openapiext.document
 import java.awt.BorderLayout
 import java.awt.GridBagConstraints
@@ -112,7 +113,7 @@ private class ModelItem(val function: RsFunction, parameter: SignatureParameter)
     : ParameterTableModelItemBase<SignatureParameter>(
     parameter,
     createTypeCodeFragment(function, parameter.parameter.parseTypeReference()),
-    createTypeCodeFragment(function, parameter.parameter.parseTypeReference()),
+    createExprCodeFragment(function, parameter.parameter.defaultValueText.orEmpty()),
 ) {
     override fun isEllipsisType(): Boolean = false
 }
@@ -122,7 +123,8 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
     descriptor.function,
     descriptor.function,
     NameColumn<SignatureParameter, ModelItem>(descriptor.function.project, "Pattern:"),
-    SignatureTypeColumn(descriptor)
+    SignatureTypeColumn(descriptor),
+    SignatureDefaultValueColumn(descriptor)
 ) {
     private val factory: RsPsiFactory = RsPsiFactory(descriptor.function.project)
 
@@ -168,6 +170,16 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
             val fragment = value as? RsTypeReferenceCodeFragment ?: return
             if (item != null) {
                 item.parameter.parameter.type = ParameterType.fromText(fragment.typeReference, fragment.text)
+            }
+        }
+    }
+
+    private class SignatureDefaultValueColumn(descriptor: SignatureDescriptor)
+        : DefaultValueColumn<SignatureParameter, ModelItem>(descriptor.function.project, RsFileType) {
+        override fun setValue(item: ModelItem?, value: PsiCodeFragment?) {
+            val fragment = value as? RsExpressionCodeFragment ?: return
+            if (item != null) {
+                item.parameter.parameter.defaultValueText = fragment.text
             }
         }
     }
@@ -356,16 +368,33 @@ private class ChangeSignatureDialog(project: Project, descriptor: SignatureDescr
 private fun createTypeCodeFragment(
     context: RsElement,
     type: RsTypeReference?
+): PsiCodeFragment = createCodeFragment(context) { importTarget ->
+    RsTypeReferenceCodeFragment(
+        context.project,
+        type?.text.orEmpty(),
+        context = importTarget,
+        importTarget = importTarget
+    )
+}
+private fun createExprCodeFragment(
+    context: RsElement,
+    expr: String?
+): PsiCodeFragment = createCodeFragment(context) { importTarget ->
+    RsExpressionCodeFragment(
+        context.project,
+        expr.orEmpty(),
+        context = importTarget,
+        importTarget = importTarget
+    )
+}
+private fun createCodeFragment(
+    context: RsElement,
+    factory: (importTarget: RsItemsOwner) -> RsCodeFragment
 ): PsiCodeFragment {
     val freshMod = RsPsiFactory(context.project).createModItem(TMP_MOD_NAME, "")
     freshMod.setContext(context.containingFile as RsFile)
 
-    val fragment = RsTypeReferenceCodeFragment(
-        context.project,
-        type?.text.orEmpty(),
-        context = freshMod,
-        importTarget = freshMod
-    )
+    val fragment = factory(freshMod)
     val document = fragment.document!!
     document.addDocumentListener(object : DocumentListener {
         override fun documentChanged(event: DocumentEvent) {
