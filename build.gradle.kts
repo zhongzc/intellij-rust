@@ -44,6 +44,7 @@ val javaPlugin = "com.intellij.java"
 val javaScriptPlugin = "JavaScript"
 val clionPlugins = listOf("com.intellij.cidr.base", "com.intellij.clion")
 val mlCompletionPlugin = "com.intellij.completion.ml.ranking"
+val dockerPlugin = "Docker"
 
 val compileNativeCodeTaskName = "compileNativeCode"
 
@@ -225,7 +226,8 @@ project(":plugin") {
             graziePlugin,
             psiViewerPlugin,
             javaScriptPlugin,
-            mlCompletionPlugin
+            mlCompletionPlugin,
+            dockerPlugin
         )
         if (baseIDE == "idea") {
             plugins += listOf(

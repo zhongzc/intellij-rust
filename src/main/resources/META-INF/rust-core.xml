@@ -892,6 +892,8 @@
 
         <projectTaskRunner implementation="org.rust.cargo.runconfig.buildtool.CargoBuildTaskRunner"/>
 
+        <executionTargetLanguageRuntimeType implementation="org.rust.cargo.runconfig.target.RsLanguageRuntimeType"/>
+
         <!-- Cargo -->
 
         <projectConfigurable instance="org.rust.cargo.project.configurable.RsProjectConfigurable"
