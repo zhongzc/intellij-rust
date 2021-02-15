@@ -73,6 +73,7 @@ class Parameter(
     var type: ParameterType,
     val index: Int = NEW_PARAMETER,
     var defaultValueText: String? = null,
+    var defaultValue: RsExpr? = null,
 ) {
     val typeReference: RsTypeReference
         get() = parseTypeReference() ?: factory.createType("()")
@@ -83,8 +84,8 @@ class Parameter(
     val pat: RsPat
         get() = parsePat() ?: factory.createPat("_")
 
-    val defaultValue: RsExpr?
-        get() = factory.tryCreateExpression(defaultValueText.orEmpty())
+//    val defaultValue: RsExpr?
+//        get() = factory.tryCreateExpression(defaultValueText.orEmpty())
 }
 
 /**

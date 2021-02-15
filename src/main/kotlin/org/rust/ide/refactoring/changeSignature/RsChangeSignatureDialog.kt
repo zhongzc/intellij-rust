@@ -179,7 +179,7 @@ private class TableModel(val descriptor: SignatureDescriptor, val onUpdate: () -
         override fun setValue(item: ModelItem?, value: PsiCodeFragment?) {
             val fragment = value as? RsExpressionCodeFragment ?: return
             if (item != null) {
-                item.parameter.parameter.defaultValueText = fragment.text
+                item.parameter.parameter.defaultValue = fragment.expr
             }
         }
     }

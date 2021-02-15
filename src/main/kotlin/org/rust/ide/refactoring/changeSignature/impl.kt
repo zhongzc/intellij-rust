@@ -124,6 +124,9 @@ private fun changeArguments(
         is RsFunctionUsage.MethodCall -> usage.call.valueArgumentList
         else -> error("unreachable")
     }
+    for (parameter in config.parameters) {
+        RsImportHelper.importTypeReferencesFromElements(arguments, setOf(parameter.defaultValue!!), useAliases = true)
+    }
     val argumentsCopy = arguments.copy() as RsValueArgumentList
     val argumentsList = argumentsCopy.exprList
     val isUFCS = isMethod && usage is RsFunctionUsage.FunctionCall

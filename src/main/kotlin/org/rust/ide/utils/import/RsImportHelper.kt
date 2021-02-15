@@ -100,6 +100,11 @@ object RsImportHelper {
         useAliases: Boolean
     ) {
         context.accept(object : RsVisitor() {
+            override fun visitPath(path: RsPath) {
+                val item = path.reference?.resolve() as? RsQualifiedNamedElement ?: return
+                result += item
+            }
+
             override fun visitTypeReference(reference: RsTypeReference) =
                 collectImportSubjectsFromTy(reference.type, subst, result, useAliases)
 
