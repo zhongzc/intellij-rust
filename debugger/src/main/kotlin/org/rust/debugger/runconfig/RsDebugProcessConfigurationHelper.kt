@@ -165,7 +165,7 @@ class RsDebugProcessConfigurationHelper(
          */
         private val RUST_STD_TYPES: List<String> = listOf(
             "^(alloc::([a-z_]+::)+)String$",
-            "^&str$",
+            "^&?str\\*?$",
             "^(std::ffi::([a-z_]+::)+)OsString$",
             "^(alloc::([a-z_]+::)+)Vec<.+>$",
             "^(alloc::([a-z_]+::)+)VecDeque<.+>$",
