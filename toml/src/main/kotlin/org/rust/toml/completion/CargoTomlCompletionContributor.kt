@@ -21,12 +21,13 @@ class CargoTomlCompletionContributor : CompletionContributor() {
         if (tomlPluginIsAbiCompatible()) {
             extend(BASIC, inKey, CargoTomlKeysCompletionProvider())
             extend(BASIC, inValueWithKey("edition"), CargoTomlKnownValuesCompletionProvider(listOf("2015", "2018")))
-            extend(BASIC, inSpecificDependencyHeaderKey, CratesIoCargoTomlSpecificDependencyHeaderCompletionProvider())
-            extend(BASIC, inSpecificDependencyKeyValue, CratesIoCargoTomlSpecificDependencyVersionCompletionProvider())
             extend(BASIC, inFeatureDependencyArray, CargoTomlFeatureDependencyCompletionProvider())
             extend(BASIC, inDependencyPackageFeatureArray, CargoTomlDependencyFeaturesCompletionProvider())
 
+            // Available using crates local index
             extend(BASIC, inDependencyKeyValue, CargoTomlDependencyCompletionProvider())
+            extend(BASIC, inSpecificDependencyHeaderKey, CargoTomlSpecificDependencyHeaderCompletionProvider())
+            extend(BASIC, inSpecificDependencyKeyValue, CargoTomlSpecificDependencyVersionCompletionProvider())
         }
     }
 }
