@@ -9,9 +9,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import com.google.common.annotations.VisibleForTesting
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
@@ -19,11 +17,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.vfs.newvfs.events.VFilePropertyChangeEvent
-import com.intellij.openapiext.isUnitTestMode
 import com.intellij.util.io.*
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
@@ -36,7 +31,6 @@ import org.eclipse.jgit.treewalk.TreeWalk
 import org.eclipse.jgit.treewalk.filter.OrTreeFilter
 import org.eclipse.jgit.treewalk.filter.PathFilter
 import org.eclipse.jgit.treewalk.filter.TreeFilter
-import org.rust.cargo.CargoConstants
 import org.rust.openapiext.RsPathManager
 import org.rust.stdext.cleanDirectory
 import org.rust.toml.crates.local.CratesLocalIndexServiceImpl.Companion.CratesLocalIndexState
@@ -105,21 +99,6 @@ class CratesLocalIndexServiceImpl
      */
     private val isUpdating: AtomicBoolean = AtomicBoolean(false)
 
-    init {
-        if (!isUnitTestMode) {
-            // Check index for update on `Cargo.toml` changes
-            ApplicationManager.getApplication().messageBus.connect().subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
-                override fun after(events: MutableList<out VFileEvent>) {
-                    if (events.any { it.pathEndsWith(CargoConstants.MANIFEST_FILE) }) {
-                        if (!isUpdating.get()) {
-                            updateIfNeeded()
-                        }
-                    }
-                }
-            })
-        }
-    }
-
     override fun getState(): CratesLocalIndexState = state
     override fun loadState(state: CratesLocalIndexState) {
         this.state = state
@@ -152,8 +131,7 @@ class CratesLocalIndexServiceImpl
         return crateNames
     }
 
-    @VisibleForTesting
-    fun updateIfNeeded() {
+    override fun updateIfNeeded() {
         if (state.indexedCommitHash != registryHeadCommitHash && isUpdating.compareAndSet(false, true)) {
             CratesLocalIndexUpdateTask(registryHeadCommitHash).queue()
         }

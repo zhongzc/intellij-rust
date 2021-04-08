@@ -13,6 +13,7 @@ import org.jetbrains.annotations.TestOnly
 interface CratesLocalIndexService {
     fun getCrate(crateName: String): CargoRegistryCrate?
     fun getAllCrateNames(): List<String>
+    fun updateIfNeeded()
 
     companion object {
         fun getInstance(): CratesLocalIndexService = service()
