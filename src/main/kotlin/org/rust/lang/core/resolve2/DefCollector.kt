@@ -402,6 +402,11 @@ class DeclMacroDefInfo(
     }
 }
 
+class DeclMacro2DefInfo(
+    override val crate: CratePersistentId,
+    override val path: ModPath,
+) : MacroDefInfo()
+
 class ProcMacroDefInfo(
     override val crate: CratePersistentId,
     override val path: ModPath,

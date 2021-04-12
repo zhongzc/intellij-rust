@@ -68,7 +68,7 @@ class RsFileStub(
     override fun getType() = Type
 
     object Type : IStubFileElementType<RsFileStub>(RsLanguage) {
-        private const val STUB_VERSION = 211
+        private const val STUB_VERSION = 212
 
         // Bump this number if Stub structure changes
         override fun getStubVersion(): Int = RustParserDefinition.PARSER_VERSION + STUB_VERSION
@@ -1470,7 +1470,7 @@ class RsMacro2Stub(
     RsNamedStub {
 
     object Type : RsStubElementType<RsMacro2Stub, RsMacro2>("MACRO_2") {
-        override fun shouldCreateStub(node: ASTNode): Boolean = node.elementType in RS_MOD_OR_FILE
+        override fun shouldCreateStub(node: ASTNode): Boolean = node.treeParent.elementType in RS_MOD_OR_FILE
 
         override fun deserialize(dataStream: StubInputStream, parentStub: StubElement<*>?) =
             RsMacro2Stub(
