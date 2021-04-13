@@ -81,7 +81,8 @@ abstract class RsAsyncRunner(
                     backtraceMode,
                     environmentVariables,
                     executableArguments,
-                    emulateTerminal
+                    emulateTerminal,
+                    withSudo
                 )
             }
         }

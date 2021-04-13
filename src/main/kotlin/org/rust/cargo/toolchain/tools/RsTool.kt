@@ -47,9 +47,10 @@ abstract class RsTool(toolName: String, protected val toolchain: RsToolchain) {
             environmentVariables: EnvironmentVariablesData,
             parameters: List<String>,
             emulateTerminal: Boolean,
+            withSudo: Boolean,
             http: HttpConfigurable = HttpConfigurable.getInstance()
         ): GeneralCommandLine {
-            var commandLine = GeneralCommandLine(executable)
+            var commandLine = GeneralCommandLine(executable, withSudo)
                 .withWorkDirectory(workingDirectory)
                 .withInput(redirectInputFrom)
                 .withEnvironment("TERM", "ansi")

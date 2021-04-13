@@ -86,7 +86,8 @@ abstract class RsExecutableRunner(
             runCargoCommand.backtraceMode,
             runCargoCommand.environmentVariables,
             executableArguments,
-            runCargoCommand.emulateTerminal
+            runCargoCommand.emulateTerminal,
+            runCargoCommand.withSudo,
         )
         return showRunContent(state, environment, runExecutable)
     }
