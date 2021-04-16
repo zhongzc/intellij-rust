@@ -53,3 +53,5 @@ fun randomLowercaseAlphabetic(length: Int): String =
 
 fun ByteArray.getLeading64bits(): Long =
     ByteBuffer.wrap(this).also { it.order(ByteOrder.BIG_ENDIAN) }.getLong(0)
+
+fun doNothing() = Unit
