@@ -6,7 +6,6 @@
 package org.rust.cargo
 
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.fixtures.impl.BaseFixture
@@ -16,6 +15,7 @@ import org.rust.cargo.toolchain.tools.Rustup
 import org.rust.cargo.toolchain.tools.rustup
 import org.rust.cargo.util.DownloadResult
 import org.rust.openapiext.RsPathManager
+import org.rust.stdext.toPath
 import java.nio.file.Paths
 
 // TODO: use it in [org.rust.WithRustup]
@@ -48,12 +48,17 @@ open class RustupTestFixture(
     private fun setUpAllowedRoots() {
         stdlib?.let { VfsRootAccess.allowRootAccess(testRootDisposable, it.path) }
 
-        val cargoHome = Paths.get(FileUtil.expandUserHome("~/.cargo"))
-        VfsRootAccess.allowRootAccess(testRootDisposable, cargoHome.toString())
+        val toolchain = toolchain!!
+        val cargoPath = "~/.cargo"
+            .let { toolchain.expandUserHome(it) }
+            .let { toolchain.toLocalPath(it) }
+            .toPath()
+
+        VfsRootAccess.allowRootAccess(testRootDisposable, cargoPath.toString())
         // actions-rs/toolchain on CI creates symlink at `~/.cargo` while setting up of Rust toolchain
-        val canonicalCargoHome = cargoHome.toRealPath()
-        if (cargoHome != canonicalCargoHome) {
-            VfsRootAccess.allowRootAccess(testRootDisposable, canonicalCargoHome.toString())
+        val canonicalCargoPath = cargoPath.toRealPath()
+        if (cargoPath != canonicalCargoPath) {
+            VfsRootAccess.allowRootAccess(testRootDisposable, canonicalCargoPath.toString())
         }
 
         VfsRootAccess.allowRootAccess(testRootDisposable, RsPathManager.stdlibDependenciesDir().toString())

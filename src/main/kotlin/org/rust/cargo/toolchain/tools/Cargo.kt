@@ -94,7 +94,7 @@ open class Cargo(toolchain: RsToolchain, useWrapper: Boolean = false)
 
     private fun listInstalledBinaryCrates(): List<BinaryCrate> =
         createBaseCommandLine("install", "--list")
-            .execute()
+            .execute(toolchain.executionTimeoutInMilliseconds)
             ?.stdoutLines
             ?.filterNot { it.startsWith(" ") }
             ?.map { BinaryCrate.from(it) }
@@ -107,7 +107,10 @@ open class Cargo(toolchain: RsToolchain, useWrapper: Boolean = false)
     }
 
     fun checkSupportForBuildCheckAllTargets(): Boolean {
-        val lines = createBaseCommandLine("help", "check").execute()?.stdoutLines ?: return false
+        val lines = createBaseCommandLine("help", "check")
+            .execute(toolchain.executionTimeoutInMilliseconds)
+            ?.stdoutLines
+            ?: return false
         return lines.any { it.contains(" --all-targets ") }
     }
 
@@ -152,6 +155,7 @@ open class Cargo(toolchain: RsToolchain, useWrapper: Boolean = false)
             .dropWhile { it != '{' }
         try {
             return Gson().fromJson(json, CargoMetadata.Project::class.java)
+                .convertPaths(toolchain::toLocalPath)
         } catch (e: JsonSyntaxException) {
             throw ExecutionException(e)
         }
@@ -392,7 +396,7 @@ open class Cargo(toolchain: RsToolchain, useWrapper: Boolean = false)
                 addAll(additionalArguments)
             }
             val rustcExecutable = toolchain.rustc().executable.toString()
-            createGeneralCommandLine(
+            toolchain.createGeneralCommandLine(
                 executable,
                 workingDirectory,
                 redirectInputFrom,
@@ -400,7 +404,7 @@ open class Cargo(toolchain: RsToolchain, useWrapper: Boolean = false)
                 environmentVariables,
                 parameters,
                 emulateTerminal,
-                http
+                http = http
             ).withEnvironment("RUSTC", rustcExecutable)
         }
 

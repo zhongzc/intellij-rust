@@ -27,5 +27,8 @@
         <experimentalFeature id="org.rust.crates.local.index" percentOfUsers="0">
             <description>Enables crates local index</description>
         </experimentalFeature>
+        <experimentalFeature id="org.rust.wsl" percentOfUsers="100">
+            <description>Enables WSL toolchain</description>
+        </experimentalFeature>
     </extensions>
 </idea-plugin>

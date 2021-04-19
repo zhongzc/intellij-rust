@@ -1078,6 +1078,11 @@
 
     <extensions defaultExtensionNs="org.rust">
 
+        <!-- Toolchains -->
+
+        <toolchainProvider implementation="org.rust.cargo.toolchain.RsLocalToolchainProvider"/>
+        <toolchainProvider implementation="org.rust.cargo.toolchain.wsl.RsWslToolchainProvider"/>
+
         <!-- Toolchain flavors -->
 
         <toolchainFlavor id="rust.rustupToolchainFlavor"
@@ -1088,22 +1093,25 @@
                          implementation="org.rust.cargo.toolchain.flavors.RsSysPathToolchainFlavor"/>
 
         <toolchainFlavor id="rust.unixToolchainFlavor"
-                         implementation="org.rust.cargo.toolchain.flavors.RsUnixToolchainFlavor"
-                         os="unix"/>
+                         implementation="org.rust.cargo.toolchain.flavors.RsUnixToolchainFlavor"/>
 
         <toolchainFlavor id="rust.macToolchainFlavor"
-                         implementation="org.rust.cargo.toolchain.flavors.RsMacToolchainFlavor"
-                         os="mac"/>
+                         implementation="org.rust.cargo.toolchain.flavors.RsMacToolchainFlavor"/>
 
         <toolchainFlavor id="rust.winToolchainFlavor"
-                         implementation="org.rust.cargo.toolchain.flavors.RsWinToolchainFlavor"
-                         os="windows"/>
+                         implementation="org.rust.cargo.toolchain.flavors.RsWinToolchainFlavor"/>
+
+        <toolchainFlavor id="rust.wslToolchainFlavor"
+                         implementation="org.rust.cargo.toolchain.wsl.RsWslToolchainFlavor"/>
 
     </extensions>
 
     <extensionPoints>
         <extensionPoint qualifiedName="org.rust.runConfigurationExtension"
                         interface="org.rust.cargo.runconfig.CargoCommandConfigurationExtension"
+                        dynamic="true"/>
+        <extensionPoint qualifiedName="org.rust.toolchainProvider"
+                        interface="org.rust.cargo.toolchain.RsToolchainProvider"
                         dynamic="true"/>
         <extensionPoint qualifiedName="org.rust.toolchainFlavor"
                         interface="org.rust.cargo.toolchain.flavors.RsToolchainFlavor"

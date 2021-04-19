@@ -18,6 +18,7 @@ import com.intellij.ui.components.Link
 import com.intellij.ui.layout.LayoutBuilder
 import org.rust.cargo.project.settings.toolchain
 import org.rust.cargo.toolchain.RsToolchain
+import org.rust.cargo.toolchain.RsToolchainProvider
 import org.rust.cargo.toolchain.tools.Rustup
 import org.rust.cargo.toolchain.tools.rustc
 import org.rust.cargo.toolchain.tools.rustup
@@ -52,7 +53,7 @@ class RustProjectSettingsPanel(
     private var fetchedSysroot: String? = null
 
     private val downloadStdlibLink = Link("Download via Rustup") {
-        val rustup = RsToolchain(Paths.get(pathToToolchainField.text)).rustup
+        val rustup = RsToolchainProvider.getToolchain(Paths.get(pathToToolchainField.text))?.rustup
         if (rustup != null) {
             object : Task.Modal(null, "Downloading Rust Standard Library", true) {
                 override fun onSuccess() = update()
@@ -75,11 +76,11 @@ class RustProjectSettingsPanel(
 
     var data: Data
         get() {
-            val toolchain = RsToolchain(Paths.get(pathToToolchainField.text))
+            val toolchain = RsToolchainProvider.getToolchain(Paths.get(pathToToolchainField.text))
             return Data(
                 toolchain = toolchain,
                 explicitPathToStdlib = pathToStdlibField.text.blankToNull()
-                    ?.takeIf { toolchain.rustup == null && it != fetchedSysroot }
+                    ?.takeIf { toolchain?.rustup == null && it != fetchedSysroot }
             )
         }
         set(value) {
@@ -113,11 +114,11 @@ class RustProjectSettingsPanel(
         val pathToToolchain = pathToToolchainField.text
         versionUpdateDebouncer.run(
             onPooledThread = {
-                val toolchain = RsToolchain(Paths.get(pathToToolchain))
-                val rustc = toolchain.rustc()
-                val rustup = toolchain.rustup
-                val rustcVersion = rustc.queryVersion()?.semver
-                val stdlibLocation = rustc.getStdlibFromSysroot(cargoProjectDir)?.presentableUrl
+                val toolchain = RsToolchainProvider.getToolchain(Paths.get(pathToToolchain))
+                val rustc = toolchain?.rustc()
+                val rustup = toolchain?.rustup
+                val rustcVersion = rustc?.queryVersion()?.semver
+                val stdlibLocation = rustc?.getStdlibFromSysroot(cargoProjectDir)?.presentableUrl
                 Triple(rustcVersion, stdlibLocation, rustup != null)
             },
             onUiThread = { (rustcVersion, stdlibLocation, hasRustup) ->

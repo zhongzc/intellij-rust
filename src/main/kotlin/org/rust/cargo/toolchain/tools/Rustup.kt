@@ -60,13 +60,13 @@ class Rustup(toolchain: RsToolchain, private val projectDirectory: Path) : RsToo
         createBaseCommandLine(
             "component", "list",
             workingDirectory = projectDirectory
-        ).execute()?.stdoutLines?.map { Component.from(it) }.orEmpty()
+        ).execute(toolchain.executionTimeoutInMilliseconds)?.stdoutLines?.map { Component.from(it) }.orEmpty()
 
     private fun listTargets(): List<Target> =
         createBaseCommandLine(
             "target", "list",
             workingDirectory = projectDirectory
-        ).execute()?.stdoutLines?.map { Target.from(it) }.orEmpty()
+        ).execute(toolchain.executionTimeoutInMilliseconds)?.stdoutLines?.map { Target.from(it) }.orEmpty()
 
     fun downloadStdlib(owner: Disposable? = null, listener: ProcessListener? = null): DownloadResult<VirtualFile> {
         // Sometimes we have stdlib but don't have write access to install it (for example, github workflow)

@@ -28,7 +28,7 @@ class Rustc(toolchain: RsToolchain) : RustupComponent(NAME, toolchain) {
             checkIsBackgroundThread()
         }
         val lines = createBaseCommandLine("--version", "--verbose", workingDirectory = workingDirectory)
-            .execute()
+            .execute(toolchain.executionTimeoutInMilliseconds)
             ?.stdoutLines
         return lines?.let { parseRustcVersion(it) }
     }
@@ -42,7 +42,9 @@ class Rustc(toolchain: RsToolchain) : RustupComponent(NAME, toolchain) {
             "--print", "sysroot",
             workingDirectory = projectDirectory
         ).execute(timeoutMs)
-        return if (output?.isSuccess == true) output.stdout.trim() else null
+
+        if (output?.isSuccess != true) return null
+        return toolchain.toLocalPath(output.stdout.trim())
     }
 
     fun getStdlibPathFromSysroot(projectDirectory: Path): String? {

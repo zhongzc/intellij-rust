@@ -7,10 +7,10 @@ package org.rust.cargo.toolchain
 
 import java.nio.file.Path
 
-// BACKCOMPAT: 2020.2
+// BACKCOMPAT: 2020.3
 @Deprecated("Use org.rust.cargo.toolchain.RsToolchain")
 @Suppress("DEPRECATION")
-class RustToolchain(location: Path) : RsToolchain(location) {
+class RustToolchain(location: Path) : RsLocalToolchain(location) {
 
     @Suppress("unused")
     fun rawCargo(): Cargo = Cargo(this)
